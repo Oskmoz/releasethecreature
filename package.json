@@ -1,0 +1,9 @@
+{
+  "name": "creature",
+  "private": true,
+  "description": "Tamagotchi partagé façon jeu rétro",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "DEV=1 NODE_ENV=development DATA_DIR=data-dev node --watch server.js"
+  }
+}

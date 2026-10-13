@@ -1,0 +1,47 @@
+# À adapter : DOMAIN, nom du réseau Traefik, entrypoint et certresolver.
+# Lancement : DOMAIN=creature.mondomaine.fr docker compose up -d --build
+services:
+  creature:
+    build: .
+    container_name: creature
+    restart: unless-stopped
+    environment:
+      # Derrière Traefik : faire confiance à X-Forwarded-For pour connaître la vraie IP (limites anti-spam)
+      - TRUST_PROXY=1
+    volumes:
+      - creature-data:/data
+    networks:
+      - traefik
+    # Aucun port publié : le conteneur n'est joignable qu'à travers Traefik.
+
+    # --- Confinement : même en cas de faille dans l'appli, l'attaquant reste enfermé ---
+    read_only: true                # système de fichiers en lecture seule (seul /data est inscriptible)
+    tmpfs:
+      - /tmp:size=16m,noexec,nosuid
+    cap_drop:
+      - ALL                        # aucun privilège Linux (inutile pour écouter sur le port 3000)
+    security_opt:
+      - no-new-privileges:true     # impossible de regagner des droits (setuid…)
+    mem_limit: 256m                # une fuite mémoire ou un abus ne peut pas affamer la VM
+    cpus: 1.0
+    pids_limit: 64
+    logging:                       # logs bornés : ils ne rempliront pas le disque de la VM
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+    labels:
+      - traefik.enable=true
+      - traefik.docker.network=traefik
+      - traefik.http.routers.creature.rule=Host(`${DOMAIN:?définir DOMAIN}`)
+      - traefik.http.routers.creature.entrypoints=websecure
+      - traefik.http.routers.creature.tls.certresolver=letsencrypt
+      - traefik.http.services.creature.loadbalancer.server.port=3000
+
+volumes:
+  creature-data:
+
+networks:
+  traefik:
+    external: true

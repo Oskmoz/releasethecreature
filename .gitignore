@@ -1,0 +1,20 @@
+# Données de jeu (état de la créature, points et identifiants secrets des joueurs)
+data/
+data-dev/
+
+# Dépendances et artefacts
+node_modules/
+*.zip
+*.log
+
+# Environnement local
+.env
+.env.*
+.claude/
+
+# Systèmes et éditeurs
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.swp

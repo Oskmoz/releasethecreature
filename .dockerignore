@@ -1,0 +1,6 @@
+data
+data-dev
+node_modules
+*.zip
+.git
+.claude

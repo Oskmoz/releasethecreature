@@ -1,0 +1,18 @@
+# Lancement en local, sans Traefik ni DOMAIN :
+#   docker compose -f docker-compose.local.yml up --build
+# Puis ouvrir http://localhost:3000 (ou PORT=8080 pour changer le port hôte).
+# Outils de dev (points, jauges, âge, lieux…) : DEV=1 docker compose -f docker-compose.local.yml up --build
+services:
+  creature:
+    build: .
+    container_name: creature-local
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - DEV=${DEV:-0}
+      - NODE_ENV=${NODE_ENV:-development}
+    volumes:
+      - creature-local-data:/data
+
+volumes:
+  creature-local-data:

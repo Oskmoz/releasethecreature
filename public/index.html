@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#140a3c">
+<title>La Créature</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet">
+<style>
+  :root { --ink:#fff; --food:#ffd23f; --food2:#ff8a1f; --joy:#ff5ec8; --joy2:#b23aff; --egg:#5ef2ff; --egg2:#2f8fff; --clean:#5ef2ff; --clean2:#1a8ab8; --fit:#7dff7a; --fit2:#2a9a3a; --sleep:#aab4ff; --sleep2:#5058d0; --panel:#0b0820; --edge:#5ef2ff; --k:#14082a; }
+  * { box-sizing:border-box; }
+  [hidden] { display:none !important; }
+  html, body { margin:0; height:100%; overflow:hidden; background:#000; color:var(--ink); font-family:'Press Start 2P', ui-monospace, monospace; -webkit-font-smoothing:none; user-select:none; -webkit-user-select:none; touch-action:manipulation; }
+  button { font:inherit; color:inherit; cursor:pointer; }
+  canvas#world { position:fixed; left:0; top:0; image-rendering:pixelated; image-rendering:crisp-edges; display:block; }
+
+  /* ---------- HUD ---------- */
+  #hud { position:fixed; top:0; left:0; right:0; display:flex; justify-content:space-between; align-items:flex-start; gap:12px; padding:max(14px, env(safe-area-inset-top)) 16px 0; pointer-events:none; }
+  #hud button { pointer-events:auto; }
+  #bars { display:flex; gap:4px; }
+  .ebar { display:flex; flex-direction:column; align-items:center; gap:6px; width:40px; }
+  .ebar b { font-size:6px; font-weight:400; text-shadow:2px 2px 0 #000; }
+  .segs { display:flex; flex-direction:column-reverse; gap:2px; width:22px; padding:3px 4px; background:#000; box-shadow:0 0 0 2px #fff, 0 0 0 4px #000; }
+  .seg { height:4px; background:#2a2440; }
+  .food .seg.on { background:var(--food); box-shadow:inset 3px 0 0 var(--food2), inset -3px 0 0 var(--food2); }
+  .joy .seg.on { background:var(--joy); box-shadow:inset 3px 0 0 var(--joy2), inset -3px 0 0 var(--joy2); }
+  .clean .seg.on { background:var(--clean); box-shadow:inset 3px 0 0 var(--clean2), inset -3px 0 0 var(--clean2); }
+  .fit .seg.on { background:var(--fit); box-shadow:inset 3px 0 0 var(--fit2), inset -3px 0 0 var(--fit2); }
+  .sleep .seg.on { background:var(--sleep); box-shadow:inset 3px 0 0 var(--sleep2), inset -3px 0 0 var(--sleep2); }
+  .ebar.low .seg.on { background:#ff2d4a; box-shadow:inset 3px 0 0 #8a0018, inset -3px 0 0 #8a0018; animation:blink .5s steps(1) infinite; }
+  #mid { flex:1; text-align:center; padding-top:4px; min-width:0; }
+  #name { font-size:clamp(14px, 3.4vw, 32px); line-height:1.2; color:#fff; text-shadow:3px 3px 0 #ff2d75, 6px 6px 0 #3b1fa8, 7px 7px 0 #000; word-break:break-word; }
+  #name.rainbow { animation:hue 1.2s steps(12) infinite; }
+  #age { margin-top:12px; font-size:clamp(8px, 1.3vw, 11px); color:#ffe25e; text-shadow:2px 2px 0 #000; }
+  #place { margin-top:8px; font-size:clamp(7px, 1.1vw, 10px); color:#5ef2ff; text-shadow:2px 2px 0 #000; }
+  #right { display:flex; flex-direction:column; align-items:flex-end; gap:8px; font-size:clamp(8px, 1.2vw, 11px); text-shadow:2px 2px 0 #000; }
+  .score span { color:#ff5ec8; margin-right:8px; }
+  .score b { font-weight:400; }
+  .score.pts span { color:#ffe25e; }
+  .score.pts b { display:inline-block; }
+  .score.pts.bump b { animation:bump .4s steps(2); color:#ffe25e; }
+  #sys { display:flex; gap:8px; margin-top:4px; }
+  .px { font-size:9px; padding:8px 10px; background:#000; border:0; box-shadow:0 0 0 2px #fff, 0 0 0 4px #000; }
+  .px:hover { background:#3b1fa8; }
+
+  /* ---------- JOURNAL ---------- */
+  #logbox { position:fixed; right:16px; top:170px; width:min(330px, 30vw); max-height:calc(100vh - 400px); min-height:120px; overflow:auto; background:rgba(11,8,32,.85); box-shadow:0 0 0 3px #000, 0 0 0 6px var(--joy), 0 0 0 9px #000; padding:12px; }
+  #logbox h3 { margin:0 0 10px; font-size:9px; font-weight:400; color:var(--joy); }
+  #log { list-style:none; margin:0; padding:0; font-size:8px; line-height:1.9; }
+  #log li { padding:5px 0; border-top:2px dotted rgba(255,255,255,.18); color:#d8d4ff; }
+  #log li:first-child { border-top:0; color:#ffe25e; }
+  #log time { color:#5ef2ff; margin-right:6px; }
+  #log li { display:grid; grid-template-columns:1fr auto; gap:8px; align-items:start; }
+  #log li.me { color:#9fffb0; }
+  #log li:first-child.me { color:#9fffb0; }
+  .like { display:inline-flex; align-items:center; gap:4px; padding:3px 5px; border:0; background:transparent; font-size:8px; color:#9a98c6; }
+  .like:hover:not(:disabled) { background:rgba(255,79,111,.18); }
+  .like:disabled { cursor:default; }
+  .like.on { color:#ff4f6f; }
+  .hrt { display:inline-block; width:14px; height:12px; background:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 6' shape-rendering='crispEdges' fill='%236a6a8a'%3E%3Cpath d='M1 0h2v1H1zM4 0h2v1H4zM0 1h7v2H0zM1 3h5v1H1zM2 4h3v1H2zM3 5h1v1H3z'/%3E%3C/svg%3E") no-repeat center / contain; image-rendering:pixelated; }
+  .like.on .hrt, .like.mine .hrt { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 7 6' shape-rendering='crispEdges' fill='%23ff4f6f'%3E%3Cpath d='M1 0h2v1H1zM4 0h2v1H4zM0 1h7v2H0zM1 3h5v1H1zM2 4h3v1H2zM3 5h1v1H3z'/%3E%3C/svg%3E"); }
+  .tag { font-size:7px; color:#9fffb0; }
+  .likepop { animation:bump .35s steps(2); }
+  .nickline { display:flex; align-items:center; gap:8px; pointer-events:auto; }
+  .nickline span { color:#9fffb0; }
+  #nickBtn { font-size:inherit; padding:4px 6px; border:0; background:rgba(0,0,0,.4); box-shadow:0 0 0 2px #9fffb0; text-shadow:2px 2px 0 #000; }
+  #nickBtn:hover { background:#1a4a2a; }
+  .nickbox select { font:inherit; font-size:10px; padding:10px 8px; color:#fff; background:#000; border:0; box-shadow:0 0 0 2px #fff, 0 0 0 4px #000; flex:1; min-width:0; }
+  .nickrow { display:flex; gap:14px; margin-top:16px; }
+  .nickrow .buy { flex:1; min-width:0; }
+  .nickprev { margin:18px 0 0; font-size:clamp(11px, 2vw, 15px); color:#9fffb0; text-align:center; text-shadow:2px 2px 0 #000; }
+  #logBtn { display:none; }
+
+  /* ---------- BAS ---------- */
+  #bottom { position:fixed; left:0; right:0; bottom:0; padding:0 16px max(16px, env(safe-area-inset-bottom)); display:grid; gap:18px; max-width:920px; margin:0 auto; }
+  #ticker { display:none; font-size:8px; line-height:1.8; text-shadow:2px 2px 0 #000; color:#ffe25e; }
+  #dialog { position:relative; background:var(--panel); box-shadow:0 0 0 3px #000, 0 0 0 7px #fff, 0 0 0 10px #000; padding:18px 18px 16px; min-height:78px; }
+  #speaker { position:absolute; top:-12px; left:14px; background:var(--edge); color:#000; font-size:9px; padding:5px 8px; box-shadow:0 0 0 3px #000; }
+  #speaker.sys { background:#ffe25e; }
+  #text { margin:0; font-size:clamp(9px, 1.5vw, 13px); line-height:1.9; min-height:2em; }
+  #caret { position:absolute; right:12px; bottom:8px; font-style:normal; font-size:10px; color:var(--edge); visibility:hidden; }
+  #dialog.done #caret { visibility:visible; animation:blink .7s steps(1) infinite; }
+  #controls { display:grid; grid-template-columns:repeat(5, 1fr); gap:14px; }
+  .big { display:flex; align-items:center; justify-content:center; gap:8px; padding:15px 6px; border:0; font-size:clamp(8px, 1.15vw, 13px); text-shadow:2px 2px 0 #000; box-shadow:inset -5px -5px 0 rgba(0,0,0,.35), inset 5px 5px 0 rgba(255,255,255,.45), 0 0 0 4px #000; }
+  .big:active:not(:disabled), .big.press { transform:translate(2px, 2px); box-shadow:inset 5px 5px 0 rgba(0,0,0,.35), 0 0 0 4px #000; }
+  .big:disabled { filter:grayscale(.85) brightness(.6); cursor:not-allowed; }
+  .big.food { background:var(--food2); }
+  .big.joy { background:var(--joy2); }
+  .big.clean { background:var(--clean2); }
+  .big.fit { background:var(--fit2); }
+  .big.sleep { background:var(--sleep2); }
+  .big.egg { background:var(--egg2); grid-column:1 / -1; }
+  .big:not(:disabled).egg { animation:pulse .8s steps(2) infinite; }
+  .k { display:inline-grid; place-items:center; min-width:24px; height:24px; padding:0 6px; flex:none; border-radius:99px; background:#000; color:#fff; font-size:10px; text-shadow:none; }
+
+  /* ---------- BOUTIQUE ---------- */
+  #shop, #nickm { position:fixed; inset:0; display:grid; place-items:center; padding:16px; background:rgba(0,0,0,.6); z-index:3; }
+  .shopbox { width:min(660px, 100%); max-height:86vh; overflow:auto; background:var(--panel); box-shadow:0 0 0 3px #000, 0 0 0 7px #ffe25e, 0 0 0 10px #000; padding:20px 18px; }
+  .shophead { display:flex; align-items:center; gap:14px; }
+  .shophead h2 { flex:1; margin:0; font-size:clamp(11px, 2vw, 16px); font-weight:400; color:#ffe25e; text-shadow:2px 2px 0 #000; }
+  #shopPts { font-size:10px; color:#ffe25e; }
+  #shopTabs { display:flex; flex-wrap:wrap; gap:12px; margin:20px 0 14px; }
+  #shopTabs .px.on { background:#3b1fa8; color:#ffe25e; }
+  #shopInfo { margin:0 0 14px; font-size:8px; line-height:1.9; color:#5ef2ff; min-height:1.9em; }
+  #shopList { list-style:none; margin:0; padding:0; display:grid; gap:12px; }
+  #shopList li { display:grid; grid-template-columns:1fr auto; gap:6px 14px; align-items:center; padding:12px; background:rgba(255,255,255,.05); box-shadow:inset 0 0 0 2px rgba(255,255,255,.12); }
+  #shopList b { font-size:10px; font-weight:400; }
+  #shopList p { margin:0; font-size:8px; line-height:1.8; color:#d8d4ff; }
+  .swatch { display:inline-block; width:12px; height:12px; margin-right:8px; vertical-align:-2px; box-shadow:0 0 0 2px #000, 0 0 0 3px #fff; }
+  .buy { grid-row:1 / span 2; grid-column:2; min-width:120px; padding:10px 8px; border:0; font-size:9px; background:#ff8a1f; text-shadow:1px 1px 0 #000; box-shadow:inset -3px -3px 0 rgba(0,0,0,.35), inset 3px 3px 0 rgba(255,255,255,.4), 0 0 0 3px #000; }
+  .buy:disabled { filter:grayscale(.9) brightness(.6); cursor:not-allowed; }
+  .buy.own { background:#2a9a3a; filter:none; }
+  .shophelp { margin:16px 0 0; font-size:7px; line-height:1.9; color:#9a98c6; }
+
+  /* ---------- OUTILS DE DEV (affichés seulement si le serveur est en mode dev) ---------- */
+  #devBtn { background:#8a1020; }
+  #devpanel { position:fixed; left:16px; top:190px; width:min(300px, calc(100vw - 32px)); max-height:calc(100vh - 220px); overflow:auto; background:rgba(40,0,10,.92); box-shadow:0 0 0 3px #000, 0 0 0 6px #ff4f6f, 0 0 0 9px #000; padding:12px; }
+  #devpanel h3 { margin:0 0 10px; font-size:9px; font-weight:400; color:#ff4f6f; }
+  #devpanel p { margin:10px 0 6px; font-size:7px; color:#ffb0c0; }
+  #devpanel .grid { display:flex; flex-wrap:wrap; gap:8px; }
+  #devpanel button { font-size:7px; padding:6px 7px; background:#000; border:0; box-shadow:0 0 0 2px #ff4f6f; }
+  #devpanel button:hover { background:#5a0a1a; }
+
+  /* ---------- OVERLAYS ---------- */
+  #flash { position:fixed; inset:0; background:#fff; opacity:0; pointer-events:none; }
+  #flash.on { animation:flash .45s steps(3) forwards; }
+  #flash.red { background:#ff2d4a; }
+  #ready { position:fixed; left:0; right:0; top:42%; text-align:center; font-size:clamp(20px, 4vw, 40px); color:#fff; text-shadow:4px 4px 0 #2f8fff, 6px 6px 0 #000; pointer-events:none; display:none; }
+  #ready.on { display:block; animation:blink .25s steps(1) infinite; }
+  #title { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:28px; padding:20px; text-align:center; background:radial-gradient(ellipse at center, rgba(20,10,60,.55), rgba(0,0,0,.85)); cursor:pointer; }
+  #title.gone { display:none; }
+  .logo { font-size:clamp(28px, 7.5vw, 84px); line-height:1.3; }
+  .logo .w { display:inline-block; white-space:nowrap; margin:0 .25em; }
+  .logo .c { display:inline-block; animation:wave 1.4s ease-in-out infinite; text-shadow:4px 4px 0 #000, 6px 6px 0 rgba(0,0,0,.5); }
+  .tag { font-size:clamp(8px, 1.4vw, 12px); line-height:2; color:#d8d4ff; margin:0; text-shadow:2px 2px 0 #000; }
+  .press { font-size:clamp(12px, 2vw, 18px); color:#ffe25e; margin:0; animation:blink 1s steps(1) infinite; text-shadow:3px 3px 0 #000; }
+  .help { font-size:clamp(7px, 1.1vw, 10px); color:#5ef2ff; margin:0; line-height:2; text-shadow:2px 2px 0 #000; }
+  #crt { position:fixed; inset:0; pointer-events:none; background:repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 1px, transparent 1px 3px), radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,.45)); }
+
+  @keyframes blink { 50% { opacity:0; } }
+  @keyframes bump { 50% { transform:scale(1.4); } }
+  @keyframes hue { to { filter:hue-rotate(360deg); } }
+  @keyframes pulse { 50% { background:var(--egg); } }
+  @keyframes flash { 0% { opacity:.9; } 100% { opacity:0; } }
+  @keyframes wave { 0%, 100% { transform:translateY(0); } 50% { transform:translateY(-12px); } }
+
+  @media (max-width:760px) {
+    #logbox { display:none; }
+    #logbox.open { display:block; left:12px; right:12px; top:150px; width:auto; max-height:45vh; z-index:2; }
+    #logBtn { display:inline-block; }
+    #ticker { display:block; }
+    #right .score:nth-child(2) { display:none; }
+    .seg { height:3px; }
+    .segs { width:16px; padding:2px 3px; }
+    .ebar { width:30px; }
+    .ebar b { font-size:5px; }
+    #hud { padding-left:10px; padding-right:10px; gap:8px 10px; flex-wrap:wrap; }
+    #mid { order:3; flex-basis:100%; padding-top:2px; }
+    #name { font-size:14px; }
+    #age { margin-top:8px; }
+    #right { gap:6px; }
+    #sys { gap:6px; }
+    .px { font-size:7px; padding:6px 7px; }
+    #bottom { gap:16px; }
+    #controls { grid-template-columns:repeat(3, 1fr); gap:12px; }
+    .big { padding:12px 4px; gap:6px; font-size:8px; }
+    .k { min-width:20px; height:20px; font-size:8px; }
+    .buy { min-width:96px; }
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .logo .c, #name.rainbow { animation:none; }
+  }
+</style>
+</head>
+<body>
+<canvas id="world" aria-hidden="true"></canvas>
+
+<div id="hud">
+  <div id="bars">
+    <div class="ebar food" id="barFood"><div class="segs"></div><b>MIAM</b></div>
+    <div class="ebar joy" id="barJoy"><div class="segs"></div><b>JOIE</b></div>
+    <div class="ebar clean" id="barClean"><div class="segs"></div><b>PROPRE</b></div>
+    <div class="ebar fit" id="barFit"><div class="segs"></div><b>FORME</b></div>
+    <div class="ebar sleep" id="barSleep"><div class="segs"></div><b>DODO</b></div>
+  </div>
+  <div id="mid"><div id="name">…</div><div id="age"></div><div id="place"></div></div>
+  <div id="right">
+    <div class="score"><span>SCORE</span><b id="score">000000</b></div>
+    <div class="score"><span>HI</span><b id="best">---</b></div>
+    <div class="score pts" id="ptsBox"><span>PTS</span><b id="pts">0</b></div>
+    <div class="score nickline"><span>TOI</span><button id="nickBtn" title="Changer de pseudo (P)">…</button></div>
+    <div id="sys"><button class="px" id="devBtn" hidden title="Outils de dev (²)">DEV</button><button class="px" id="logBtn" title="Journal">JOURNAL</button><button class="px" id="shopBtn" title="Boutique (S)">BOUTIQUE</button><button class="px" id="mute" title="Son (M)">SON ON</button><button class="px" id="fs" title="Plein écran (F)">[ ]</button></div>
+  </div>
+</div>
+
+<div id="logbox"><h3>► JOURNAL</h3><ol id="log"></ol></div>
+
+<div id="bottom">
+  <div id="ticker"></div>
+  <div id="dialog"><span id="speaker">…</span><p id="text"></p><i id="caret">▼</i></div>
+  <div id="controls">
+    <button id="feed" class="big food"><span class="k">1</span><span class="lbl">NOURRIR</span></button>
+    <button id="pet" class="big joy"><span class="k">2</span><span class="lbl">CÂLINER</span></button>
+    <button id="wash" class="big clean"><span class="k">3</span><span class="lbl">LAVER</span></button>
+    <button id="play" class="big fit"><span class="k">4</span><span class="lbl">JOUER</span></button>
+    <button id="rock" class="big sleep"><span class="k">5</span><span class="lbl">BERCER</span></button>
+    <button id="hatch" class="big egg" hidden><span class="k">START</span><span class="lbl">FAIRE ÉCLORE</span></button>
+  </div>
+</div>
+
+<div id="shop" hidden>
+  <div class="shopbox" role="dialog" aria-label="Boutique">
+    <div class="shophead"><h2>BOUTIQUE</h2><span id="shopPts"></span><button class="px" id="shopClose" title="Fermer (Échap)">X</button></div>
+    <div id="shopTabs">
+      <button class="px" data-cat="lieux">LIEUX</button>
+      <button class="px" data-cat="couleurs">COULEURS</button>
+      <button class="px" data-cat="accessoires">ACCESSOIRES</button>
+    </div>
+    <p id="shopInfo"></p>
+    <ul id="shopList"></ul>
+    <p class="shophelp">GAGNE DES POINTS : 10 PAR ACTION, 1 PAR MINUTE PASSÉE ICI (180 PAR JOUR MAX).<br>LA CRÉATURE EST À TOUT LE MONDE : TES ACHATS SE VOIENT POUR TOUS.</p>
+  </div>
+</div>
+<div id="devpanel" hidden>
+  <h3>► OUTILS DE DEV</h3>
+  <p>POINTS</p>
+  <div class="grid"><button data-dev='{"op":"points","add":1000}'>+1000 PTS</button><button data-dev='{"op":"points","pts":0}'>0 PTS</button></div>
+  <p>JAUGES</p>
+  <div class="grid">
+    <button data-dev='{"op":"stats","food":100,"joy":100,"clean":100,"fit":100,"sleep":100}'>TOUT À 100</button>
+    <button data-dev='{"op":"stats","food":15,"joy":15,"clean":15,"fit":15,"sleep":15}'>TOUT À 15</button>
+    <button data-dev='{"op":"stats","food":0}'>MIAM 0</button>
+    <button data-dev='{"op":"stats","joy":10}'>TRISTE</button>
+    <button data-dev='{"op":"stats","clean":5}'>SALE</button>
+    <button data-dev='{"op":"stats","fit":10}'>MOU</button>
+    <button data-dev='{"op":"stats","sleep":10}'>FATIGUÉ</button>
+    <button data-dev='{"op":"nap"}'>SIESTE</button>
+  </div>
+  <p>ÂGE / ÉVOLUTION</p>
+  <div class="grid">
+    <button data-dev='{"op":"age","hours":0}'>NIV 1</button>
+    <button data-dev='{"op":"age","hours":0.3}'>2</button>
+    <button data-dev='{"op":"age","hours":0.8}'>3</button>
+    <button data-dev='{"op":"age","hours":1.6}'>4</button>
+    <button data-dev='{"op":"age","hours":3.1}'>5</button>
+    <button data-dev='{"op":"age","hours":6.1}'>6</button>
+    <button data-dev='{"op":"age","hours":12.1}'>7</button>
+    <button data-dev='{"op":"age","hours":24.1}'>8</button>
+    <button data-dev='{"op":"age","hours":48.1}'>9</button>
+    <button data-dev='{"op":"age","hours":96.1}'>10</button>
+    <button data-dev='{"op":"evolve"}'>ÉVOLUER DANS 3 S</button>
+  </div>
+  <p>ESPÈCE</p>
+  <div class="grid">
+    <button data-dev='{"op":"species","species":"dino"}'>DINO</button>
+    <button data-dev='{"op":"species","species":"phenix"}'>PHÉNIX</button>
+    <button data-dev='{"op":"species","species":"renard"}'>RENARD</button>
+  </div>
+  <p>LIEUX (SANS COÛT NI DÉLAI)</p>
+  <div class="grid">
+    <button data-dev='{"op":"place","key":"montagne"}'>MONTAGNE</button>
+    <button data-dev='{"op":"place","key":"plage"}'>PLAGE</button>
+    <button data-dev='{"op":"place","key":"espace"}'>ESPACE</button>
+    <button data-dev='{"op":"place","key":"ville"}'>VILLE</button>
+    <button data-dev='{"op":"place","key":"plage","minutes":0.1}'>FIN DE SÉJOUR DANS 6 S</button>
+    <button data-dev='{"op":"place","key":"maison"}'>MAISON</button>
+  </div>
+  <p>DIVERS</p>
+  <div class="grid">
+    <button data-dev='{"op":"cooldowns"}'>RESET DÉLAIS</button>
+    <button data-dev='{"op":"bonus"}'>PASSANT BONUS</button>
+    <button data-dev='{"op":"kill"}'>TUER</button>
+  </div>
+</div>
+<div id="nickm" hidden>
+  <div class="shopbox nickbox" role="dialog" aria-label="Pseudo">
+    <div class="shophead"><h2>TON PSEUDO</h2><button class="px" id="nickClose" title="Fermer (Échap)">X</button></div>
+    <p class="nickprev" id="nickPrev"></p>
+    <div class="nickrow"><select id="nickNoun" aria-label="Nom"></select><select id="nickAdj" aria-label="Adjectif"></select></div>
+    <div class="nickrow"><button class="buy" id="nickRand">AU HASARD</button><button class="buy" id="nickOk">VALIDER</button></div>
+    <p class="shophelp">LE NUMÉRO EST TIRÉ AU SORT. PAS DE TEXTE LIBRE, POUR QUE LES PSEUDOS RESTENT SYMPAS.<br>TES PROCHAINES ACTIONS DANS LE JOURNAL PORTERONT CE NOM.</p>
+  </div>
+</div>
+<div id="ready">READY</div>
+<div id="flash"></div>
+<div id="title" role="button" tabindex="0" aria-label="Commencer">
+  <div class="logo" id="logo"></div>
+  <p class="tag">ELLE APPARTIENT À TOUT LE MONDE.<br>SI PERSONNE NE S’EN OCCUPE, ELLE MEURT.</p>
+  <p class="press">▶ APPUIE SUR START ◀</p>
+  <p class="help">1 NOURRIR · 2 CÂLINER · 3 LAVER · 4 JOUER · 5 BERCER<br>S BOUTIQUE &nbsp;·&nbsp; P PSEUDO &nbsp;·&nbsp; M SON &nbsp;·&nbsp; F PLEIN ÉCRAN</p>
+</div>
+<div id="crt"></div>
+
+<script src="app.js"></script>
+</body>
+</html>
