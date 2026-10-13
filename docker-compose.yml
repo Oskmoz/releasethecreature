@@ -1,5 +1,11 @@
-# À adapter : DOMAIN, nom du réseau Traefik, entrypoint et certresolver.
 # Lancement : DOMAIN=creature.mondomaine.fr docker compose up -d --build
+#
+# Réglages Traefik (valeurs par défaut entre parenthèses), à mettre dans un fichier .env à côté de ce fichier :
+#   DOMAIN               nom de domaine du jeu (obligatoire)
+#   TRAEFIK_NETWORK      réseau Docker sur lequel tourne Traefik (traefik)
+#   TRAEFIK_ENTRYPOINT   entrypoint HTTPS de Traefik (websecure)
+#   TRAEFIK_CERTRESOLVER resolver de certificats Let's Encrypt (letsencrypt)
+# Pour trouver le réseau de ton Traefik : docker inspect <conteneur-traefik> --format '{{json .NetworkSettings.Networks}}'
 services:
   creature:
     build: .
@@ -33,10 +39,10 @@ services:
 
     labels:
       - traefik.enable=true
-      - traefik.docker.network=traefik
+      - traefik.docker.network=${TRAEFIK_NETWORK:-traefik}
       - traefik.http.routers.creature.rule=Host(`${DOMAIN:?définir DOMAIN}`)
-      - traefik.http.routers.creature.entrypoints=websecure
-      - traefik.http.routers.creature.tls.certresolver=letsencrypt
+      - traefik.http.routers.creature.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}
+      - traefik.http.routers.creature.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}
       - traefik.http.services.creature.loadbalancer.server.port=3000
 
 volumes:
@@ -45,3 +51,4 @@ volumes:
 networks:
   traefik:
     external: true
+    name: ${TRAEFIK_NETWORK:-traefik}
