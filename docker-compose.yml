@@ -4,6 +4,7 @@
 #   DOMAIN               nom de domaine du jeu (obligatoire)
 #   TRAEFIK_NETWORK      réseau Docker sur lequel tourne Traefik (traefik)
 #   TRAEFIK_ENTRYPOINT   entrypoint HTTPS de Traefik (websecure)
+#   DATA_PATH            dossier de l'hôte où sont stockées les données du jeu (./data)
 #   TRAEFIK_CERTRESOLVER resolver de certificats Let's Encrypt (letsencrypt)
 # Pour trouver le réseau de ton Traefik : docker inspect <conteneur-traefik> --format '{{json .NetworkSettings.Networks}}'
 # Le resolver doit exister dans la config statique de Traefik (section certificatesResolvers), sinon Traefik
@@ -17,7 +18,9 @@ services:
       # Derrière Traefik : faire confiance à X-Forwarded-For pour connaître la vraie IP (limites anti-spam)
       - TRUST_PROXY=1
     volumes:
-      - creature-data:/data
+      # Dossier de l'hôte (./data par défaut) : facile à consulter et à sauvegarder, survit à tout
+      # (redémarrage, rebuild, docker compose down -v). Doit appartenir à l'UID 1000 (utilisateur node).
+      - ${DATA_PATH:-./data}:/data
     networks:
       - traefik
     # Aucun port publié : le conteneur n'est joignable qu'à travers Traefik.
@@ -47,9 +50,6 @@ services:
       - traefik.http.routers.creature.tls=true
       - traefik.http.routers.creature.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}
       - traefik.http.services.creature.loadbalancer.server.port=3000
-
-volumes:
-  creature-data:
 
 networks:
   traefik:
