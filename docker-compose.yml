@@ -6,6 +6,8 @@
 #   TRAEFIK_ENTRYPOINT   entrypoint HTTPS de Traefik (websecure)
 #   TRAEFIK_CERTRESOLVER resolver de certificats Let's Encrypt (letsencrypt)
 # Pour trouver le réseau de ton Traefik : docker inspect <conteneur-traefik> --format '{{json .NetworkSettings.Networks}}'
+# Le resolver doit exister dans la config statique de Traefik (section certificatesResolvers), sinon Traefik
+# sert son « TRAEFIK DEFAULT CERT » : docker logs <conteneur-traefik> 2>&1 | grep -i resolver
 services:
   creature:
     build: .
@@ -42,6 +44,7 @@ services:
       - traefik.docker.network=${TRAEFIK_NETWORK:-traefik}
       - traefik.http.routers.creature.rule=Host(`${DOMAIN:?définir DOMAIN}`)
       - traefik.http.routers.creature.entrypoints=${TRAEFIK_ENTRYPOINT:-websecure}
+      - traefik.http.routers.creature.tls=true
       - traefik.http.routers.creature.tls.certresolver=${TRAEFIK_CERTRESOLVER:-letsencrypt}
       - traefik.http.services.creature.loadbalancer.server.port=3000
 
