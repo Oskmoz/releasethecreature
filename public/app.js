@@ -442,10 +442,10 @@
     cv.width = W; cv.height = H;
     cv.style.width = W * S + 'px'; cv.style.height = H * S + 'px';
     g.imageSmoothingEnabled = false;
-    var bt = $('bottom').getBoundingClientRect().top, ht = $('hud').getBoundingClientRect().bottom;
+    var bt = $('bottom').getBoundingClientRect().top, ht = Math.max($('hud').getBoundingClientRect().bottom, $('mid').getBoundingClientRect().bottom); // #mid est hors du flux sur grand écran
     groundY = Math.max(40, Math.min(H - 8, Math.floor(bt / S) - 18));
     hudBottom = Math.ceil(ht / S);
-    $('logbox').style.top = Math.ceil(ht + 14) + 'px'; // le journal commence toujours sous le HUD, quelle que soit sa hauteur
+    $('logbox').style.top = Math.ceil($('hud').getBoundingClientRect().bottom + 14) + 'px'; // le journal commence toujours sous le HUD, quelle que soit sa hauteur
     skyKey = '';
   }
 

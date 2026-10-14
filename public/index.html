@@ -31,7 +31,7 @@
   .fit .seg.on { background:var(--fit); box-shadow:inset 3px 0 0 var(--fit2), inset -3px 0 0 var(--fit2); }
   .sleep .seg.on { background:var(--sleep); box-shadow:inset 3px 0 0 var(--sleep2), inset -3px 0 0 var(--sleep2); }
   .ebar.low .seg.on { background:#ff2d4a; box-shadow:inset 3px 0 0 #8a0018, inset -3px 0 0 #8a0018; animation:blink .5s steps(1) infinite; }
-  #mid { flex:1; text-align:center; padding-top:4px; min-width:0; }
+  #mid { position:absolute; left:50%; top:max(14px, env(safe-area-inset-top)); transform:translateX(-50%); width:max(220px, min(640px, calc(100vw - 600px))); text-align:center; padding-top:4px; }
   #name { font-size:clamp(14px, 3.4vw, 32px); line-height:1.2; color:#fff; text-shadow:3px 3px 0 #ff2d75, 6px 6px 0 #3b1fa8, 7px 7px 0 #000; word-break:break-word; }
   #name.rainbow { animation:hue 1.2s steps(12) infinite; }
   #age { margin-top:12px; font-size:clamp(8px, 1.3vw, 11px); color:#ffe25e; text-shadow:2px 2px 0 #000; }
@@ -55,9 +55,9 @@
   .score.pts span { color:#ffe25e; }
   .score.pts b { display:inline-block; }
   .score.pts.bump b { animation:bump .4s steps(2); color:#ffe25e; }
-  #sys { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:8px; margin-top:4px; }
-  #right { max-width:36vw; }
-  #mid { min-width:200px; }
+  /* Menu : colonne verticale à gauche, sous les jauges */
+  #sys { position:absolute; left:16px; top:calc(100% + 14px); display:flex; flex-direction:column; align-items:stretch; gap:10px; }
+  #sys .px { text-align:left; }
   .px { font-size:9px; padding:8px 10px; background:#000; border:0; box-shadow:0 0 0 2px #fff, 0 0 0 4px #000; }
   .px:hover { background:#3b1fa8; }
 
@@ -151,7 +151,7 @@
 
   /* ---------- OUTILS DE DEV (affichés seulement si le serveur est en mode dev) ---------- */
   #devBtn { background:#8a1020; }
-  #devpanel { position:fixed; left:16px; top:190px; width:min(300px, calc(100vw - 32px)); max-height:calc(100vh - 220px); overflow:auto; background:rgba(40,0,10,.92); box-shadow:0 0 0 3px #000, 0 0 0 6px #ff4f6f, 0 0 0 9px #000; padding:12px; }
+  #devpanel { position:fixed; left:170px; top:190px; width:min(300px, calc(100vw - 32px)); max-height:calc(100vh - 220px); overflow:auto; background:rgba(40,0,10,.92); box-shadow:0 0 0 3px #000, 0 0 0 6px #ff4f6f, 0 0 0 9px #000; padding:12px; }
   #devpanel h3 { margin:0 0 10px; font-size:9px; font-weight:400; color:#ff4f6f; }
   #devpanel p { margin:10px 0 6px; font-size:7px; color:#ffb0c0; }
   #devpanel .grid { display:flex; flex-wrap:wrap; gap:8px; }
@@ -223,7 +223,7 @@
   @keyframes flash { 0% { opacity:.9; } 100% { opacity:0; } }
   @keyframes wave { 0%, 100% { transform:translateY(0); } 50% { transform:translateY(-12px); } }
 
-  @media (max-width:1180px) and (min-width:761px) { .px { font-size:7px; padding:6px 7px; } #sys { gap:7px; } #xp { flex-direction:column; gap:6px; } }
+  @media (max-width:1180px) and (min-width:761px) { #xp { flex-direction:column; gap:6px; } }
   @media (max-width:760px) {
     #logbox { display:none; }
     #logbox.open { display:block; left:12px; right:12px; top:150px; width:auto; max-height:45vh; z-index:2; }
@@ -239,9 +239,10 @@
     #xp { flex-direction:column; gap:6px; }
     #xpText, #xpHint { font-size:7px; }
     #hud { padding-left:10px; padding-right:10px; gap:8px 10px; flex-wrap:wrap; justify-content:center; }
-    #mid { min-width:0; }
+    #mid { position:static; transform:none; width:auto; min-width:0; }
+    #devpanel { left:16px; }
     #right { max-width:none; flex-basis:100%; flex-direction:row; flex-wrap:wrap; justify-content:center; align-items:center; gap:8px 14px; }
-    #sys { flex-basis:100%; flex-wrap:wrap; justify-content:center; margin-top:2px; }
+    #sys { position:static; order:2; flex-basis:100%; flex-direction:row; flex-wrap:wrap; justify-content:center; margin-top:0; }
     #mid { order:3; flex-basis:100%; padding-top:2px; }
     #name { font-size:14px; }
     #age { margin-top:8px; }
@@ -270,13 +271,13 @@
     <div class="ebar fit" id="barFit"><div class="segs"></div><b>FORME</b></div>
     <div class="ebar sleep" id="barSleep"><div class="segs"></div><b>DODO</b></div>
   </div>
+  <div id="sys"><button class="px" id="devBtn" hidden title="Outils de dev (²)">DEV</button><button class="px" id="logBtn" title="Journal">JOURNAL</button><button class="px" id="shopBtn" title="Boutique (S)">BOUTIQUE</button><button class="px" id="achBtn" title="Hauts faits (H)">HAUTS FAITS</button><button class="px" id="hallBtn" title="Panthéon des créatures (T)">TOP 10</button><button class="px" id="mute" title="Son (M)">SON ON</button><button class="px" id="fs" title="Plein écran (F)">[ ]</button></div>
   <div id="mid"><div id="name">…</div><div id="age"></div><div id="xp" hidden title="Progression vers le niveau suivant"><div id="xpBar"></div><span id="xpText"></span></div><div id="xpHint"></div><div id="place"></div></div>
   <div id="right">
     <div class="score"><span>SCORE</span><b id="score">000000</b></div>
     <div class="score"><span>HI</span><b id="best">---</b></div>
     <div class="score pts" id="ptsBox"><span>PTS</span><b id="pts">0</b></div>
     <div class="score nickline"><span>TOI</span><button id="nickBtn" title="Changer de pseudo (P)">…</button></div>
-    <div id="sys"><button class="px" id="devBtn" hidden title="Outils de dev (²)">DEV</button><button class="px" id="logBtn" title="Journal">JOURNAL</button><button class="px" id="shopBtn" title="Boutique (S)">BOUTIQUE</button><button class="px" id="achBtn" title="Hauts faits (H)">HAUTS FAITS</button><button class="px" id="hallBtn" title="Panthéon des créatures (T)">TOP 10</button><button class="px" id="mute" title="Son (M)">SON ON</button><button class="px" id="fs" title="Plein écran (F)">[ ]</button></div>
   </div>
 </div>
 
