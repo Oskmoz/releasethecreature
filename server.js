@@ -23,6 +23,11 @@ const NEW_VISITORS_PER_IP_PER_DAY = 10; // limite la création d'identités (et 
 const NICK_DAILY = 30;                  // changements de pseudo par jour et par visiteur
 const LIKE_COOLDOWN = 800;              // ms entre deux likes d'un même visiteur
 const LIKE_TOGGLES_PER_EVENT = 4;       // like/unlike répétés sur la même action
+// Points au toucher (tap / clic sur le décor) : plafonnés pour qu'un auto-clicker ne rapporte pas plus qu'un humain
+const TAPS_PER_PT = 10;                 // 10 touches = 1 point
+const TAP_RATE = 8;                     // touches par seconde comptées au maximum (un humain rapide)
+const TAP_DAILY = 100;                  // points de toucher max par jour et par visiteur
+const LEADERS_TTL = 15 * 1000;          // les classements des joueurs sont recalculés au plus toutes les 15 s
 
 const H = 3600 * 1000;
 const MIN = 60 * 1000;
@@ -106,8 +111,16 @@ const SHOP_BY_ID = Object.fromEntries(SHOP.map((i) => [i.id, i]));
 // Délai minimum entre deux changements, par catégorie (la créature est commune à tous)
 const BUY_COOLDOWN = { place: 20 * MIN, color: 10 * MIN, acc: 2 * MIN };
 
-// Espèces : tirées au hasard à chaque éclosion
-const SPECIES = { dino: 'un dino', phenix: 'un phénix', renard: 'un renard mystique' };
+// Espèces : tirées au hasard à chaque éclosion. weight = chances relatives (Horus est la créature épique, plus rare)
+const SPECIES = { dino: 'un dino', phenix: 'un phénix', renard: 'un renard mystique', lezard: 'un lézard géant', meduse: 'une gorgone', horus: 'ÉPIQUE : un dieu-faucon' };
+const SPECIES_WEIGHT = { dino: 4, phenix: 4, renard: 4, lezard: 4, meduse: 4, horus: 1 };
+const EPIC = { horus: true };
+function pickSpecies() {
+  const keys = Object.keys(SPECIES), total = keys.reduce((n, k) => n + SPECIES_WEIGHT[k], 0);
+  let r = Math.random() * total;
+  for (const k of keys) { r -= SPECIES_WEIGHT[k]; if (r < 0) return k; }
+  return keys[0];
+}
 const NAMES = ['Rex', 'Kaiju', 'Draco', 'Ignis', 'Titan', 'Onyx', 'Orion', 'Nova', 'Atlas', 'Vulcain', 'Raptor', 'Zéphyr', 'Kairo', 'Sirius', 'Ragnar', 'Ember'];
 const ACTIONS = {
   feed: {
@@ -162,13 +175,64 @@ const ACTIONS = {
       'a bordé {n} avec une couverture à pois.'
     ],
     full: ['{n} n’a pas sommeil et fait des grimaces.']
+  },
+  heal: {
+    stat: null, gain: 25, side: {}, // stat null : la jauge la plus basse au moment du soin
+    msgs: [
+      'a soigné {n} avec un pansement à paillettes.',
+      'a fait une piqûre de vitamines à {n}. Il a hurlé, puis remercié.',
+      'a massé les pattes de {n}. Il ronronne comme un moteur.',
+      'a posé une compresse fraîche sur le front de {n}.',
+      'a fait boire une potion fluo à {n}. Il brille un peu.'
+    ],
+    full: ['{n} est en pleine santé. Le docteur repart bredouille.']
   }
 };
+// Jauge la plus basse (cible du soin)
+const lowestStat = () => STATS.reduce((a, k) => (state[k] < state[a] ? k : a), STATS[0]);
 
 // Pseudos : nom + adjectif choisis dans des listes fermées, numéro tiré au sort (pas de texte libre)
 const NICK_NOUNS = ['Pixel', 'Comète', 'Raptor', 'Nova', 'Tigre', 'Faucon', 'Ninja', 'Pirate', 'Robot', 'Panda', 'Renard', 'Loup', 'Dragon', 'Kraken', 'Phénix', 'Yéti', 'Titan', 'Sphinx', 'Cobra', 'Lynx', 'Orque', 'Hibou', 'Koala', 'Golem'];
 const NICK_ADJS = ['Rapide', 'Cosmique', 'Magique', 'Mystique', 'Électrique', 'Sauvage', 'Agile', 'Céleste', 'Héroïque', 'Turbo', 'Néon', 'Rétro', 'Atomique', 'Solaire', 'Lunaire', 'Polaire', 'Sonique', 'Épique', 'Stellaire', 'Zen'];
 const NICK_COOLDOWN = 10 * 1000;
+
+// --- Hauts faits : attribués par le serveur à partir des compteurs de chaque visiteur ---
+// stat = compteur suivi, n = seuil, pts = récompense, rare = annoncé dans le journal,
+// secret = nom et description cachés (par le serveur) tant qu'il n'est pas débloqué
+function series(stat, list, secret) { return list.map(([n, name, desc, pts, rare]) => ({ id: stat + '_' + n, stat, n, name, desc, pts, rare: !!rare, secret: !!secret })); }
+const ACHIEVEMENTS = [
+  ...series('earned', [
+    [1, 'Premier sou', 'Gagner 1 point', 0], [10, 'Petite monnaie', 'Gagner 10 points', 0], [50, 'Tirelire', 'Gagner 50 points', 0],
+    [100, 'Bas de laine', 'Gagner 100 points', 0], [250, 'Économe', 'Gagner 250 points', 0], [500, 'Rentier', 'Gagner 500 points', 0],
+    [1000, 'Coffre-fort', 'Gagner 1 000 points', 0, true], [2500, 'Magnat', 'Gagner 2 500 points', 0, true],
+    [5000, 'Trésor de dragon', 'Gagner 5 000 points', 0, true], [10000, 'Fortune légendaire', 'Gagner 10 000 points', 0, true]
+  ]),
+  ...series('feed', [[1, 'Nourrir la bête', 'Nourrir la bête une première fois', 5], [10, 'Cuistot', 'Nourrir la bête 10 fois', 10], [100, 'Chef étoilé', 'Nourrir la bête 100 fois', 25], [500, 'Garde-manger infini', 'Nourrir la bête 500 fois', 50, true]]),
+  ...series('pet', [[1, 'Câliner la bête', 'Câliner la bête une première fois', 5], [10, 'Main douce', 'Câliner la bête 10 fois', 10], [100, 'Dompteur', 'Câliner la bête 100 fois', 25], [500, 'Murmureur de bêtes', 'Câliner la bête 500 fois', 50, true]]),
+  ...series('wash', [[1, 'Laver la bête', 'Laver la bête une première fois', 5], [10, 'Shampouineur', 'Laver la bête 10 fois', 10], [100, 'Karcher humain', 'Laver la bête 100 fois', 25]]),
+  ...series('play', [[1, 'Jouer avec la bête', 'Jouer avec la bête une première fois', 5], [10, 'Compagnon de jeu', 'Jouer avec la bête 10 fois', 10], [100, 'Coach sportif', 'Jouer avec la bête 100 fois', 25]]),
+  ...series('heal', [[1, 'Infirmier', 'Soigner la bête une première fois', 5], [10, 'Médecin de garde', 'Soigner la bête 10 fois', 10], [100, 'Grand guérisseur', 'Soigner la bête 100 fois', 25]]),
+  ...series('rock', [[1, 'Bercer la bête', 'Bercer la bête une première fois', 5], [10, 'Marchand de sable', 'Bercer la bête 10 fois', 10], [100, 'Berceuse vivante', 'Bercer la bête 100 fois', 25]]),
+  ...series('actions', [[25, 'Habitué', 'Faire 25 actions', 15], [250, 'Pilier du clan', 'Faire 250 actions', 50], [1000, 'Gardien éternel', 'Faire 1 000 actions', 100, true]]),
+  ...series('bonus', [[1, 'Réflexes', 'Attraper un passant bonus', 5], [10, 'Chasseur de passants', 'Attraper 10 passants bonus', 25], [50, 'Œil de lynx', 'Attraper 50 passants bonus', 75, true]]),
+  ...series('likesGiven', [[1, 'Premier like', 'Aimer l’action d’un autre joueur', 5], [25, 'Supporter', 'Donner 25 likes', 15], [100, 'Cœur d’or', 'Donner 100 likes', 40]]),
+  ...series('likesRecv', [[1, 'Apprécié', 'Recevoir un like', 5], [10, 'Populaire', 'Recevoir 10 likes', 20], [50, 'Star du journal', 'Recevoir 50 likes', 60, true]]),
+  ...series('buys', [[1, 'Premier achat', 'Acheter quelque chose en boutique', 5], [10, 'Client fidèle', 'Faire 10 achats', 25]]),
+  ...series('spent', [[500, 'Panier percé', 'Dépenser 500 points', 15], [5000, 'Flambeur', 'Dépenser 5 000 points', 50, true]]),
+  ...series('taps', [[100, 'Doigt agile', 'Toucher l’écran 100 fois', 5], [1000, 'Tapoteur fou', 'Toucher l’écran 1 000 fois', 20], [10000, 'Mitraillette', 'Toucher l’écran 10 000 fois', 50, true]]),
+  ...series('trips', [[1, 'Premier voyage', 'Emmener la bête en séjour', 10]]),
+  ...series('places', [[4, 'Globe-trotter', 'Emmener la bête dans les 4 lieux', 50, true]], true),
+  ...series('colors', [[1, 'Relooking', 'Changer la couleur de la bête', 10]]),
+  ...series('accs', [[1, 'Fashion week', 'Offrir un accessoire à la bête', 10]]),
+  ...series('hatches', [[1, 'Sage-femme', 'Faire éclore un œuf', 15]], true),
+  ...series('hatchEpic', [[1, 'Œil d’Horus', 'Faire éclore une créature épique', 50, true]], true),
+  ...series('nicks', [[1, 'Nouvelle identité', 'Changer de pseudo', 5]], true),
+  ...series('presence', [[10, 'Spectateur', 'Passer 10 minutes sur le site', 5], [60, 'Fidèle au poste', 'Passer 1 heure sur le site', 20], [600, 'Résident', 'Passer 10 heures sur le site', 75, true]]),
+  ...series('feedHungry', [[1, 'Sauveteur', 'Nourrir la bête quand elle meurt de faim', 10]], true),
+  ...series('feedDying', [[1, 'In extremis', 'Nourrir la bête au bord de la mort', 25, true]], true),
+  ...series('wakeUp', [[1, 'Réveil brutal', 'Déranger la bête pendant sa sieste', 5]], true)
+];
+const ACH_CATALOG = ACHIEVEMENTS.map(({ id, name, desc, n, pts, stat, secret }) => ({ id, name, desc, n, pts, stat, secret }));
 
 const pick = (a) => a[Math.floor(Math.random() * a.length)];
 // Lecture sûre dans nos tables : "constructor", "__proto__"… ne doivent jamais être pris pour une clé valide
@@ -178,13 +242,19 @@ const actor = (v) => (v ? v.nick : 'Un visiteur');
 const clamp = (x) => Math.max(0, Math.min(100, x));
 const fill = (s) => s.replace(/\{n\}/g, state.name);
 
+// Panthéon : les 10 créatures qui ont vécu le plus longtemps (seules ces 10 lignes sont conservées)
+const HALL_SIZE = 10;
+const LEVEL_HOURS = [0, 0.25, 0.75, 1.5, 3, 6, 12, 24, 48, 96]; // mêmes seuils que les niveaux de la page
+const levelOf = (ms) => LEVEL_HOURS.filter((h) => ms >= h * H).length;
+
 function newCreature(now, best) {
   return {
-    name: pick(NAMES), species: pick(Object.keys(SPECIES)), born: now, t: now,
+    name: pick(NAMES), species: pickSpecies(), born: now, t: now,
     food: 70, joy: 70, clean: 70, fit: 70, sleep: 70,
     zeroAt: null, deadAt: null, hatchableAt: null, actions: 0,
     asleepUntil: 0, place: null, color: 'orange', acc: {},
-    lastBuy: {}, best: best || null, events: [], eventSeq: (state && state.eventSeq) || 0
+    lastBuy: {}, best: best || null, events: [], eventSeq: (state && state.eventSeq) || 0,
+    hall: (state && state.hall) || [], hatchedBy: null
   };
 }
 
@@ -197,12 +267,18 @@ try {
 }
 // Migration des anciens fichiers d'état
 for (const k of STATS) if (typeof state[k] !== 'number') state[k] = 70;
+// Migration : l'ancien record unique devient la première ligne du Panthéon
+if (!state.hall) state.hall = state.best ? [{ name: state.best.name, species: null, lived: state.best.ms, level: levelOf(state.best.ms), actions: null, hatchedBy: null, deadAt: null }] : [];
 const defaults = { species: 'dino', asleepUntil: 0, place: null, color: 'orange', acc: {}, lastBuy: {}, zeroAt: null };
 for (const k in defaults) if (state[k] === undefined) state[k] = defaults[k];
 if (!state.zeroAt && !state.deadAt && state.food <= 0) state.zeroAt = state.t;
 let visitors = state.visitors || {};
 // Migration : un visiteur qui a déjà gagné ou dépensé des points compte comme joueur (gardé 60 jours)
-for (const id in visitors) { const v = visitors[id]; if (v.acted === undefined) v.acted = v.pts !== PTS_WELCOME || !!v.lastNick || !!v.lastBonus; }
+for (const id in visitors) {
+  const v = visitors[id];
+  if (v.acted === undefined) v.acted = v.pts !== PTS_WELCOME || !!v.lastNick || !!v.lastBonus;
+  if (!v.st) v.st = { earned: Math.max(0, v.pts) }; // hauts faits : on part du solde actuel des anciens joueurs
+}
 if (!state.eventSeq) state.eventSeq = 0;
 for (const e of state.events) if (!e.id) { e.id = ++state.eventSeq; e.author = null; e.likers = []; }
 delete state.visitors;
@@ -260,6 +336,10 @@ function die() {
   const lived = state.deadAt - state.born;
   if (!state.best || lived > state.best.ms) state.best = { name: state.name, ms: lived };
   addEvent(state.name + ' est mort de faim. Bravo à tous.', state.deadAt);
+  const rec = { name: state.name, species: state.species, lived, level: levelOf(lived), actions: state.actions, hatchedBy: state.hatchedBy || null, deadAt: state.deadAt };
+  state.hall = state.hall.concat(rec).sort((a, b) => b.lived - a.lived).slice(0, HALL_SIZE);
+  const rank = state.hall.indexOf(rec) + 1;
+  if (rank) addEvent(state.name + ' entre au Panthéon à la ' + (rank === 1 ? '1re' : rank + 'e') + ' place !' + (rank === 1 ? ' Nouveau record !' : ''), state.deadAt);
 }
 
 // Met l'état à jour jusqu'à "now", par segments (fin de séjour, fin de sieste)
@@ -286,7 +366,7 @@ function view(now, vid) {
   settle(now);
   const s = state, v = vid && own(visitors, vid);
   const out = {
-    name: s.name, species: s.species, born: s.born, dead: !!s.deadAt, deadAt: s.deadAt, canHatchAt: s.hatchableAt,
+    name: s.name, species: s.species, born: s.born, hall: s.hall, hatchedBy: s.hatchedBy || null, dead: !!s.deadAt, deadAt: s.deadAt, canHatchAt: s.hatchableAt,
     actions: s.actions, best: s.best, now, cooldownMs: COOLDOWN_MS,
     events: s.events.map((e) => ({
       id: e.id, ts: e.ts, text: e.text, likes: e.likers.length,
@@ -294,7 +374,7 @@ function view(now, vid) {
     })),
     nickParts: { nouns: NICK_NOUNS, adjs: NICK_ADJS },
     asleepUntil: s.asleepUntil, place: s.place, color: s.color, acc: s.acc,
-    buyCooldown: {}, shop: SHOP, me: v ? { pts: v.pts, nick: v.nick, ...bonusInfo(v, now) } : null, dev: DEV
+    buyCooldown: {}, shop: SHOP, me: v ? { pts: v.pts, nick: v.nick, achCount: Object.keys(v.ach || {}).length, achTotal: ACHIEVEMENTS.length, achNew: takeNewAch(v), tapLeft: tapLeft(v, now), ...bonusInfo(v, now) } : null, dev: DEV
   };
   for (const k of STATS) out[k] = Math.round(s[k]);
   for (const c in BUY_COOLDOWN) out.buyCooldown[c] = (s.lastBuy[c] || 0) + BUY_COOLDOWN[c];
@@ -419,18 +499,22 @@ function act(req, res, kind) {
   if (state.deadAt) return send(res, 409, { error: 'dead', ...view(now, vid) });
   lastAction.set(ip, now);
   state.actions++;
-  const a = ACTIONS[kind];
-  if (state[a.stat] > 92) {
+  const a = ACTIONS[kind], stat = a.stat || lowestStat();
+  // Hauts faits « spéciaux » : on regarde l'état AVANT l'action
+  if (v && kind === 'feed' && state.food < 25) track(v, 'feedHungry', 1, now);
+  if (v && kind === 'feed' && state.food < 8) track(v, 'feedDying', 1, now);
+  if (v && kind !== 'rock' && state.asleepUntil > now) track(v, 'wakeUp', 1, now);
+  if (state[stat] > (a.stat ? 92 : 80)) {
     state.joy = clamp(state.joy - 8);
     addEvent(fill(pick(a.full)), now);
   } else {
-    state[a.stat] = clamp(state[a.stat] + a.gain);
+    state[stat] = clamp(state[stat] + a.gain);
     for (const k in a.side) state[k] = clamp(state[k] + a.side[k]);
     if (state.food > 0) state.zeroAt = null;
     if (a.nap) state.asleepUntil = now + NAP_MS;
     else if (state.asleepUntil > now) state.asleepUntil = now; // on le réveille
     addEvent(actor(v) + ' ' + fill(pick(a.msgs)), now, vid);
-    if (v) { v.pts += PTS_ACTION; v.acted = true; }
+    if (v) { v.acted = true; earn(v, PTS_ACTION, now); track(v, kind, 1, now); track(v, 'actions', 1, now); }
   }
   save();
   send(res, 200, { gained: v ? PTS_ACTION : 0, ...view(now, vid) });
@@ -443,6 +527,9 @@ function hatch(req, res) {
   if (now < state.hatchableAt) return send(res, 429, { error: 'too_early', ...view(now, vid) });
   const best = state.best;
   state = newCreature(now, best);
+  state.hatchedBy = v ? v.nick : null;
+  track(v, 'hatches', 1, now);
+  if (EPIC[state.species]) track(v, 'hatchEpic', 1, now);
   addEvent(actor(v) + ' a fait éclore un œuf : c’est ' + SPECIES[state.species] + ' ! Bonjour, ' + state.name + ' !', now, vid);
   save();
   send(res, 200, view(now, vid));
@@ -455,11 +542,54 @@ function ping(req, res) {
   if (v && now - v.lastPing >= 55 * 1000) {
     const day = new Date(now).toISOString().slice(0, 10);
     if (v.day !== day) { v.day = day; v.dayPts = 0; }
-    if (v.dayPts < PRESENCE_CAP) { v.pts += PTS_PRESENCE; v.dayPts += PTS_PRESENCE; gained = PTS_PRESENCE; v.acted = true; }
+    if (v.dayPts < PRESENCE_CAP) { v.dayPts += PTS_PRESENCE; gained = PTS_PRESENCE; v.acted = true; earn(v, PTS_PRESENCE, now); }
+    track(v, 'presence', 1, now);
     v.lastPing = now;
     save();
   }
   send(res, 200, { gained, ...view(now, vid) });
+}
+
+// Incrémente un compteur du visiteur, débloque les hauts faits atteints et met les nouveautés en attente d'affichage
+function track(v, stat, inc, now) {
+  if (!v) return;
+  v.st = v.st || {};
+  v.st[stat] = (v.st[stat] || 0) + (inc === undefined ? 1 : inc);
+  if (stat === 'earned') return checkAch(v, now);
+  checkAch(v, now);
+}
+function earn(v, pts, now) { if (!v || pts <= 0) return; v.pts += pts; track(v, 'earned', pts, now); }
+function checkAch(v, now) {
+  v.ach = v.ach || {};
+  let reward = 0;
+  for (const a of ACHIEVEMENTS) {
+    if (v.ach[a.id] || ((v.st && v.st[a.stat]) || 0) < a.n) continue;
+    v.ach[a.id] = now || Date.now();
+    (v.achNew = v.achNew || []).push(a.id);
+    reward += a.pts;
+    if (a.rare) addEvent(actor(v) + ' débloque le haut fait « ' + a.name + ' » !', now || Date.now(), null);
+  }
+  if (reward) earn(v, reward, now); // les récompenses comptent dans les points gagnés (sans boucle : les hauts faits de points ne rapportent rien)
+}
+
+function takeNewAch(v) {
+  if (!v.achNew || !v.achNew.length) return [];
+  const out = v.achNew.map((id) => ACH_CATALOG.find((a) => a.id === id)).filter(Boolean);
+  v.achNew = [];
+  save();
+  return out;
+}
+// Liste complète pour le panneau : catalogue + ce que ce visiteur a débloqué + sa progression
+function achievements(req, res) {
+  const now = Date.now(), vid = visitorId(req), v = vid && own(visitors, vid);
+  const st = (v && v.st) || {}, got = (v && v.ach) || {};
+  send(res, 200, {
+    list: ACH_CATALOG.map((a) => got[a.id]
+      ? { ...a, at: got[a.id], progress: a.n }
+      // Secret pas encore débloqué : on n'envoie rien qui permettrait de le deviner
+      : a.secret ? { id: 'secret_' + ACH_CATALOG.indexOf(a), secret: true, name: '???', desc: 'Haut fait secret. Continue de jouer pour le découvrir…', at: null }
+        : { ...a, at: null, progress: Math.min(a.n, st[a.stat] || 0) })
+  });
 }
 
 function today(now) { return new Date(now).toISOString().slice(0, 10); }
@@ -475,10 +605,65 @@ function bonus(req, res, body) {
   if (v.bonusDay !== day) { v.bonusDay = day; v.bonusCount = 0; }
   if (v.bonusCount >= BONUS_DAILY) return send(res, 429, { error: 'limit', ...view(now, vid) });
   if (now - (v.lastBonus || 0) < BONUS_COOLDOWN) return send(res, 429, { error: 'cooldown', ...view(now, vid) });
-  v.lastBonus = now; v.bonusCount++; v.pts += BONUS_PTS; v.acted = true;
+  v.lastBonus = now; v.bonusCount++; v.acted = true; earn(v, BONUS_PTS, now); track(v, 'bonus', 1, now);
   addEvent(actor(v) + ' a attrapé ' + label + ' au vol ! (+' + BONUS_PTS + ' pts)', now, vid);
   save();
   send(res, 200, { gained: BONUS_PTS, ...view(now, vid) });
+}
+
+// Points au toucher : le client envoie un lot de touches toutes les quelques secondes.
+// Le serveur ne croit pas le nombre annoncé : il le borne au temps écoulé depuis le dernier lot (TAP_RATE / s).
+function tapLeft(v, now) { return v.tapDay === today(now) ? Math.max(0, TAP_DAILY - (v.tapPts || 0)) : TAP_DAILY; }
+function tap(req, res, body) {
+  const now = Date.now(), vid = visitorId(req), v = visitor(vid, now, req);
+  const n = body && Number.isInteger(body.n) ? body.n : 0;
+  if (!v || n < 1 || n > 1000) return send(res, 400, { error: 'bad_request', ...view(now, vid) });
+  const elapsed = Math.min(30, (now - (v.tapAt || 0)) / 1000);
+  const taps = Math.min(n, Math.floor(elapsed * TAP_RATE));
+  v.tapAt = now;
+  const day = today(now);
+  if (v.tapDay !== day) { v.tapDay = day; v.tapPts = 0; v.tapAcc = 0; }
+  let gained = 0;
+  if (taps > 0) {
+    v.acted = true;
+    track(v, 'taps', taps, now);
+    v.tapAcc = (v.tapAcc || 0) + taps;
+    gained = Math.min(Math.floor(v.tapAcc / TAPS_PER_PT), TAP_DAILY - (v.tapPts || 0));
+    v.tapAcc %= TAPS_PER_PT;
+    if (gained > 0) { v.tapPts = (v.tapPts || 0) + gained; earn(v, gained, now); }
+    save();
+  }
+  send(res, 200, { gained, ...view(now, vid) });
+}
+
+// Classements des joueurs (points gagnés, dépensés, temps de présence). Les identifiants secrets
+// ne sortent jamais : on n'envoie que les pseudos, et un drapeau "me" calculé pour celui qui demande.
+const BOARDS = ['earned', 'spent', 'presence'];
+let leadersCache = null;
+function leaders(req, res) {
+  const now = Date.now(), vid = visitorId(req), v = vid && own(visitors, vid);
+  if (!leadersCache || now - leadersCache.at > LEADERS_TTL) {
+    const tops = {};
+    for (const b of BOARDS) {
+      tops[b] = Object.keys(visitors)
+        .map((id) => ({ id, val: (visitors[id].st && visitors[id].st[b]) || 0 }))
+        .filter((r) => r.val > 0)
+        .sort((x, y) => y.val - x.val)
+        .slice(0, 10);
+    }
+    leadersCache = { at: now, tops };
+  }
+  const boards = {}, me = {};
+  for (const b of BOARDS) {
+    boards[b] = leadersCache.tops[b].map((r) => ({ nick: visitors[r.id] ? visitors[r.id].nick : '?', val: r.val, me: r.id === vid }));
+    const mine = (v && v.st && v.st[b]) || 0;
+    if (v && mine > 0) {
+      let rank = 1;
+      for (const id in visitors) if (((visitors[id].st && visitors[id].st[b]) || 0) > mine) rank++;
+      me[b] = { val: mine, rank, nick: v.nick };
+    }
+  }
+  send(res, 200, { boards, me });
 }
 
 function buy(req, res, body) {
@@ -522,6 +707,14 @@ function buy(req, res, body) {
   }
   v.pts -= item.price; v.acted = true;
   state.lastBuy[cat] = now;
+  track(v, 'buys', 1, now);
+  track(v, 'spent', item.price, now);
+  if (type === 'place' && key !== 'maison') {
+    track(v, 'trips', 1, now);
+    v.visited = v.visited || {};
+    if (!v.visited[key]) { v.visited[key] = 1; track(v, 'places', 1, now); }
+  } else if (type === 'color') track(v, 'colors', 1, now);
+  else if (type === 'acc') track(v, 'accs', 1, now);
   addEvent(text, now, vid);
   save();
   send(res, 200, view(now, vid));
@@ -565,6 +758,7 @@ function setNick(req, res, body) {
   if (v.nickCount >= NICK_DAILY) return send(res, 429, { error: 'limit', ...view(now, vid) });
   v.nick = makeNick(body.noun, body.adj);
   v.lastNick = now; v.nickCount++; v.acted = true;
+  track(v, 'nicks', 1, now);
   save();
   send(res, 200, view(now, vid));
 }
@@ -582,6 +776,12 @@ function like(req, res, body) {
   v.lastLike = now; v.acted = true;
   const i = ev.likers.indexOf(vid);
   if (i >= 0) ev.likers.splice(i, 1); else ev.likers.push(vid);
+  ev.everLiked = ev.everLiked || [];
+  if (i < 0 && !ev.everLiked.includes(vid)) {
+    ev.everLiked.push(vid);
+    track(v, 'likesGiven', 1, now);
+    track(own(visitors, ev.author), 'likesRecv', 1, now);
+  }
   save();
   send(res, 200, view(now, vid));
 }
@@ -630,6 +830,8 @@ function route(req, res) {
       if (origin && origin.replace(/^https?:\/\//, '') !== req.headers.host) return send(res, 403, { error: 'bad_origin' });
       if (!visitorId(req)) return send(res, 400, { error: 'no_visitor' });
     }
+    if (req.method === 'GET' && url === '/api/achievements') return achievements(req, res);
+    if (req.method === 'GET' && url === '/api/leaders') return leaders(req, res);
     if (req.method === 'GET' && url === '/api/state') { visitor(visitorId(req), Date.now(), req); return send(res, 200, view(Date.now(), visitorId(req))); }
     if (req.method === 'POST') {
       const name = url.slice(5);
@@ -640,6 +842,7 @@ function route(req, res) {
       if (name === 'bonus') return readJson(req, res, (body) => bonus(req, res, body));
       if (name === 'nick') return readJson(req, res, (body) => setNick(req, res, body));
       if (name === 'like') return readJson(req, res, (body) => like(req, res, body));
+      if (name === 'tap') return readJson(req, res, (body) => tap(req, res, body));
       if (DEV && name === 'dev') return readJson(req, res, (body) => devTool(req, res, body));
     }
     return send(res, 404, { error: 'not_found' });

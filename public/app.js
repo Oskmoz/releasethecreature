@@ -305,20 +305,39 @@
       land: function (t) { noise(sfx, t, 0.25, 0.35, 'lowpass', 400); tone(sfx, 'sine', 120, t, 0.15, 0.6, { slide: 40, decay: 1 }); },
       bonus: function (t) { [84, 88, 91, 96, 100, 103].forEach(function (m, i) { tone(sfx, 0.25, hz(m), t + i * 0.045, 0.06, 0.25); }); tone(sfx, 0.125, hz(108), t + 0.27, 0.3, 0.15, { vib: true }); },
       like: function (t) { [76, 81, 84, 88, 93].forEach(function (m, i) { tone(sfx, 0.25, hz(m), t + i * 0.05, 0.08, 0.22); }); tone(sfx, 'triangle', hz(100), t + 0.25, 0.3, 0.2, { vib: true }); },
+      ach: function (t) { [72, 76, 79, 84].forEach(function (m, i) { tone(sfx, 0.25, hz(m), t + i * 0.09, 0.09, 0.26); }); tone(sfx, 0.25, hz(88), t + 0.36, 0.5, 0.28, { vib: true }); tone(sfx, 0.5, hz(64), t + 0.36, 0.5, 0.12); },
       evo: function (t) { for (var i = 0; i < 24; i++) tone(sfx, i % 2 ? 0.25 : 0.125, hz(60 + i + (i % 2) * 12), t + i * 0.1, 0.09, 0.18); },
       hatch: function (t) { [60, 64, 67, 72, 67, 72, 76, 79].forEach(function (m, i) { tone(sfx, 0.25, hz(m), t + i * 0.08, 0.08, 0.28); }); tone(sfx, 0.25, hz(84), t + 0.64, 0.6, 0.3, { vib: true }); },
       die: function (t) { for (var i = 0; i < 16; i++) tone(sfx, 0.5, hz(86 - i * 3), t + i * 0.055, 0.055, 0.25); noise(sfx, t + 0.9, 0.7, 0.4, 'lowpass', 600); },
       blip: function (t) { tone(sfx, 0.5, hz(93), t, 0.022, 0.05, { decay: 1 }); },
-      other: function (t) { tone(sfx, 0.25, hz(91), t, 0.05, 0.12); tone(sfx, 0.25, hz(96), t + 0.05, 0.08, 0.12); }
+      other: function (t) { tone(sfx, 0.25, hz(91), t, 0.05, 0.12); tone(sfx, 0.25, hz(96), t + 0.05, 0.08, 0.12); },
+      heal: function (t) { [79, 84, 88, 91, 96].forEach(function (m, i) { tone(sfx, 'triangle', hz(m), t + i * 0.07, 0.12, 0.3); }); tone(sfx, 0.125, hz(103), t + 0.35, 0.4, 0.14, { vib: true }); }
     };
     function fx(name) { if (!ctx || muted || ctx.state !== 'running') return; FX[name](ctx.currentTime + 0.01); }
+    // Toucher : les 15 premiers coups du combo montent la gamme majeure (do4 → do6, jamais trop aigu),
+    // ensuite « palier max » : de petits arpèges cristallins façon jeu d'aventure, dans l'aigu, sans basse.
+    // La boucle de 8 coups passe par do majeur 7, ré majeur (couleur lydienne, « magique »), si bémol, puis remonte vers do.
+    var CLIMB = [0, 2, 4, 5, 7, 9, 11, 12, 14, 16, 17, 19, 21, 23, 24];
+    var MAX_LOOP = [[72, 76, 79], [76, 79, 83], [74, 78, 81], [78, 81, 86], [70, 74, 77], [74, 77, 82], [72, 76, 80], [74, 79, 84]];
+    function tap(combo) {
+      if (!ctx || muted || ctx.state !== 'running') return;
+      var t = ctx.currentTime + 0.005;
+      if (combo <= CLIMB.length) {
+        tone(sfx, 0.25, hz(60 + CLIMB[combo - 1]), t, 0.04, 0.1, { decay: 1 });
+        if (combo === CLIMB.length) [72, 76, 79, 84].forEach(function (m, i) { tone(sfx, 0.25, hz(m), t + 0.05 + i * 0.05, 0.07, 0.16); }); // fanfare d'arrivée au max
+        return;
+      }
+      var arp = MAX_LOOP[(combo - CLIMB.length - 1) % MAX_LOOP.length];
+      arp.forEach(function (m, i) { tone(sfx, 0.125, hz(m), t + i * 0.028, 0.07, 0.09, { decay: 0.6 }); });
+      tone(sfx, 'sine', hz(arp[2] + 12), t + 0.084, 0.16, 0.06, { decay: 0.5 }); // scintillement une octave au-dessus
+    }
     function setMuted(m) {
       muted = m;
       try { localStorage.setItem('muted', m ? '1' : '0'); } catch (e) {}
       if (master) master.gain.setTargetAtTime(m ? 0 : 0.6, ctx.currentTime, 0.02);
     }
     return {
-      init: init, play: play, fx: fx,
+      init: init, play: play, fx: fx, tap: tap,
       isMuted: function () { return muted; }, setMuted: setMuted,
       resume: function () { if (ctx && ctx.state === 'suspended') ctx.resume(); },
       suspend: function () { if (ctx && ctx.state === 'running') ctx.suspend(); }
@@ -426,6 +445,7 @@
     var bt = $('bottom').getBoundingClientRect().top, ht = $('hud').getBoundingClientRect().bottom;
     groundY = Math.max(40, Math.min(H - 8, Math.floor(bt / S) - 18));
     hudBottom = Math.ceil(ht / S);
+    $('logbox').style.top = Math.ceil(ht + 14) + 'px'; // le journal commence toujours sous le HUD, quelle que soit sa hauteur
     skyKey = '';
   }
 
@@ -1018,8 +1038,19 @@
   var KITE = ['..R..', '.RRY.', 'RRYYY', '.BBG.', '..B..'];
   var STAR = ['..O..', 'OOOOO', '.OOO.', 'O...O'];
   function extraMeadow() {
-    // moulin à vent sur les collines
-    var hx = Math.floor(W * 0.9), hy = Math.floor(groundY - groundY * 0.24), k, r;
+    // moulins à vent : plantés sur les sommets de la colline (là où sin(wx * 0.025) = 1) et qui défilent avec elle
+    var off = T * 9 * mot, per = 2 * Math.PI / 0.025, n0 = Math.ceil((off - 20 - Math.PI / 0.05) / per), n;
+    for (n = n0; (Math.PI / 0.05 + n * per) - off < W + 20; n++) {
+      if (n % 2) continue; // un sommet sur deux
+      var wx = Math.PI / 0.05 + n * per, hh = Math.round(groundY * (0.12 + 0.07 + 0.03 * Math.sin(wx * 0.071)));
+      windmill(Math.round(wx - off), groundY - hh - 14);
+    }
+    // touffes d'herbe au premier plan
+    g.fillStyle = '#3f9a5a';
+    for (var x = 6; x < W; x += 17) { g.fillRect(x, groundY - 2, 1, 2); g.fillRect(x + 1, groundY - 3, 1, 3); g.fillRect(x + 2, groundY - 2, 1, 2); }
+  }
+  function windmill(hx, hy) {
+    var k, r;
     for (r = 0; r < 16; r++) { var hw = 2 + Math.floor(r * 0.25); g.fillStyle = r % 4 ? '#f0ecf8' : '#c8c4d8'; g.fillRect(hx - hw, hy + r, hw * 2, 1); }
     g.fillStyle = '#c8504a'; for (r = 0; r < 4; r++) g.fillRect(hx - r - 1, hy - 3 + r, r * 2 + 2, 1);
     g.fillStyle = '#5a3a2a'; g.fillRect(hx - 1, hy + 11, 2, 5);
@@ -1030,9 +1061,6 @@
         if (r > 4) { g.fillStyle = '#ffffff'; g.fillRect(Math.round(hx + ca * r - sa * 2), Math.round(hy - 1 + sa * r + ca * 2), 1, 1); }
       }
     }
-    // touffes d'herbe au premier plan
-    g.fillStyle = '#3f9a5a';
-    for (var x = 6; x < W; x += 17) { g.fillRect(x, groundY - 2, 1, 2); g.fillRect(x + 1, groundY - 3, 1, 3); g.fillRect(x + 2, groundY - 2, 1, 2); }
   }
   function extraForest() {
     // tente près du feu de camp
@@ -1224,6 +1252,102 @@
         p.push({ r: [23,44,26,44], c: 'B', tag: 'fl' }, { r: [37,44,40,44], c: 'B', tag: 'fl' });
         return p;
       }
+    },
+    lezard: { // varan au ras du sol : collerette (niv. 5), cornes (niv. 7), voile dorsale de dimétrodon (niv. 9)
+      name: 'LÉZARD', head: [42, 31], foot: [28, 45.6], kMin: 0.55, kMax: 1, headMax: 1.15, flame: false,
+      eye: [43, 29.5], mouth: [46, 53, 33], nose: [52, 31], halo: [42, 24], top: [42, 27], neck: [39, 35], tail: [1, 41], hip: 38,
+      parts: function (L) {
+        var p = [], i;
+        if (L >= 9) {
+          var wk = L >= 10 ? 1 : 0.72, sc = [25, 34];
+          p.push({ p: scaleAbout([[13,36],[15,25],[19,18],[25,15],[31,18],[35,25],[37,34]], sc, wk), c: 'V' });
+          [[19,33,19.5,22],[25,33,25,17],[31,33,30.5,20]].forEach(function (r) { p.push({ p: scaleAbout([[r[0] - 0.6,r[1]],[r[2] - 0.5,r[3]],[r[2] + 0.5,r[3]],[r[0] + 0.6,r[1]]], sc, wk), c: 'v' }); });
+        }
+        p.push({ p: [[20,34],[10,36],[3,39],[0,42],[6,42.5],[14,41.5],[21,41]], c: 'O' });
+        p.push({ r: [17,40,19,44], c: 'D', tag: 'bl' }, { r: [33,40,35,44], c: 'D', tag: 'bl' });
+        var spines = [[35,32.6],[31,32],[27,32],[23,32.4],[19,33.6],[14,35.6],[9,37.6]], ns = [2, 3, 3, 4, 4, 5, 5, 6, 7, 7][L - 1], sh = L >= 8 ? 3.5 : 2.5;
+        for (i = 0; i < ns; i++) { var q = spines[i]; p.push({ p: [[q[0] - 1.6, q[1] + 1],[q[0], q[1] - sh],[q[0] + 1.6, q[1] + 1]], c: 'S' }); }
+        p.push({ e: [27,37,10.5,5], c: 'O' });
+        if (L >= 5) { // collerette déployée derrière la tête
+          var fk = L >= 9 ? 1.3 : L >= 7 ? 1.1 : 0.9;
+          p.push({ p: scaleAbout([[40,36],[34,35],[31,30],[32,24],[35,21],[39,23],[41,27]], [38, 30], fk), c: 'S', head: true });
+          p.push({ p: scaleAbout([[35,33],[33,29.5],[36,30.5]], [38, 30], fk), c: 'M', head: true }, { p: scaleAbout([[34,25],[36,22.5],[37,26]], [38, 30], fk), c: 'M', head: true });
+        }
+        p.push({ e: [42,31,6,4.5], c: 'O', head: true }, { p: [[45,28.5],[54,31],[54,33.5],[45,35.5]], c: 'O', head: true });
+        p.push({ e: [28,40,8,2.2], c: 'B' }, { p: [[44,34],[53,33.6],[46,35.6]], c: 'B', head: true });
+        if (L >= 3) {
+          p.push({ p: [[22,33.5],[24.5,33],[23,37.5]], c: 'M' }, { p: [[28,32.5],[30.5,32.5],[29,36.5]], c: 'M' }, { p: [[12,37],[14.5,36.5],[13,40]], c: 'M' }, { p: [[5,39.5],[7.5,39],[6.5,41.5]], c: 'M' });
+          p.push({ p: [[40,28],[45,28.5],[41,29.5]], c: 'M', head: true });
+        }
+        if (L >= 7) p.push({ p: [[39.5,28],[35.5,21.5],[42,27]], c: 'H', head: true }, { p: [[43,27.2],[42.5,21.5],[45.5,27.8]], c: 'H', head: true });
+        p.push({ r: [21,40,23,44], c: 'O', ol: true, tag: 'fl' }, { r: [37,39,39,44], c: 'O', ol: true, tag: 'fl' });
+        if (L >= 2) p.push({ p: [[23,44],[25.5,45.6],[23,45.6]], c: 'W', tag: 'fl' }, { p: [[39,44],[41.5,45.6],[39,45.6]], c: 'W', tag: 'fl' });
+        return p;
+      }
+    },
+    meduse: { // gorgone : queue de serpent, chevelure de serpents (un de plus presque à chaque niveau), capuchon de cobra (niv. 9)
+      name: 'GORGONE', head: [33, 16], foot: [26, 45.6], kMin: 0.55, kMax: 1, headMax: 1.15, flame: false,
+      eye: [35.5, 15.5], mouth: [36, 39, 20.5], nose: [40, 17], halo: [33, 6], top: [33, 9], neck: [32, 23], tail: [1, 38], hip: 35,
+      parts: function (L) {
+        var p = [], i;
+        if (L >= 9) {
+          var wk = L >= 10 ? 1 : 0.75;
+          p.push({ p: scaleAbout([[27,27],[20,16],[21,6],[28,0],[37,0],[43,7],[42,20]], [32, 16], wk), c: 'V', head: true });
+          p.push({ p: scaleAbout([[29,23],[24,15],[25,8],[30,4],[35,4],[39,9],[38,19]], [32, 16], wk), c: 'v', head: true });
+        }
+        // chevelure de serpents, en éventail derrière et au-dessus de la tête
+        var n = [2, 3, 3, 4, 4, 5, 5, 6, 7, 7][L - 1], len = L >= 9 ? 9 : 7.5;
+        for (i = 0; i < n; i++) {
+          var a = (-205 + 135 * (n === 1 ? 0.5 : i / (n - 1))) * Math.PI / 180, dx = Math.cos(a), dy = Math.sin(a), px = -dy, py = dx;
+          var b0 = [32 + dx * 4.5, 15 + dy * 4.5], left = [], right = [], c;
+          for (var f = 0; f <= 1.001; f += 0.25) {
+            var wave = Math.sin(f * Math.PI * 1.6 + i * 1.3) * 1.3, w = 1.5 * (1 - f * 0.3);
+            c = [b0[0] + dx * len * f + px * wave, b0[1] + dy * len * f + py * wave];
+            left.push([c[0] + px * w, c[1] + py * w]); right.unshift([c[0] - px * w, c[1] - py * w]);
+          }
+          p.push({ p: left.concat(right), c: 'S', head: true });
+          p.push({ e: [c[0] + dx * 1.2, c[1] + dy * 1.2, 2.1, 2.1], c: 'T', head: true });
+        }
+        p.push({ p: [[16,41],[7,41.5],[1,38.5],[3,36.5],[7,38.8],[17,37.5]], c: 'O', tag: 'bl' });
+        p.push({ e: [25.5,41,11,4.6], c: 'O' }, { e: [27,43,8,1.8], c: 'B' });
+        p.push({ e: [26.5,29,2.2,4.5], c: 'D' });
+        p.push({ e: [31,30,6.5,8], c: 'O' }, { e: [34,31,3,5.5], c: 'B' });
+        if (L >= 3) p.push({ p: [[20,38],[22.5,37.5],[21.5,41]], c: 'M' }, { p: [[27,37.5],[29.5,37.5],[28.5,40.5]], c: 'M' }, { p: [[10,38.5],[12,38.5],[11,40.5]], c: 'M' });
+        p.push({ e: [33,16,6,6.5], c: 'O', head: true }, { e: [37,17.5,3.2,3.6], c: 'O', head: true });
+        if (L >= 5) p.push({ p: [[28,11],[33,8],[38,10.5],[37,12],[33,10],[29,12.5]], c: 'H', head: true }, { e: [33,9.4,1,1], c: 'T', head: true });
+        p.push({ e: [37,30,2.2,4.6], c: 'O', ol: true, tag: 'fa' });
+        if (L >= 7) p.push({ r: [36,31,38,31], c: 'H', tag: 'fa' });
+        return p;
+      }
+    },
+    horus: { // ÉPIQUE : dieu-faucon pharaon. Némès rayé, collier ousekh, sceptre (niv. 3), uræus (niv. 5), disque solaire (niv. 7), ailes (niv. 9)
+      name: 'HORUS', epic: true, head: [30, 13], foot: [29.5, 45.6], kMin: 0.6, kMax: 1, headMax: 1.12, flame: false,
+      eye: [32, 12.5], mouth: [35, 39, 14.5], nose: null, halo: [30, 3], top: [30, 7], neck: [30, 20], tail: null, hip: 30,
+      parts: function (L) {
+        var p = [];
+        if (L >= 9) {
+          var wk = L >= 10 ? 1 : 0.72, sc = [25, 22];
+          p.push({ p: scaleAbout([[27,22],[21,11],[12,3],[1,4],[6,9],[0,12],[7,15],[1,19],[9,21],[18,28]], sc, wk), c: 'V' });
+          p.push({ p: scaleAbout([[25,21],[20,13],[12,7],[15,12],[20,20]], sc, wk), c: 'v' });
+          p.push({ p: scaleAbout([[27,22],[21,11],[12,3],[13,5.5],[21,13],[26,23]], sc, wk), c: 'H' });
+        }
+        if (L >= 7) p.push({ e: [29.5,0,4.8,4.8], c: 'T', head: true }, { p: [[24,2.5],[35,2.5],[34.5,3.8],[24.5,3.8]], c: 'H', head: true });
+        p.push({ p: [[23.5,8],[30,6],[35,8.5],[33.5,12],[29,14],[27.5,23.5],[20.5,23.5],[22,13]], c: 'V', head: true });
+        p.push({ p: [[22,14.5],[29,14.5],[28.8,15.6],[21.8,15.6]], c: 'H', head: true }, { p: [[21.5,17.5],[28.4,17.5],[28.2,18.6],[21.3,18.6]], c: 'H', head: true }, { p: [[21,20.5],[27.9,20.5],[27.7,21.6],[20.9,21.6]], c: 'H', head: true });
+        p.push({ r: [25,38,27,43], c: 'D', tag: 'bl' }, { r: [24,44,28,44], c: 'H', tag: 'bl' });
+        p.push({ e: [22.8,26,2.4,5], c: 'D' });
+        p.push({ e: [29.5,25.5,6.8,7], c: 'O' });
+        p.push({ p: [[22.5,30.5],[36.5,30.5],[39,38.5],[20,38.5]], c: 'B' }, { r: [22,30,36,30], c: 'H' }, { p: [[28.3,31],[30.7,31],[31.4,38],[27.6,38]], c: 'H' });
+        p.push({ e: [30,20.8,7,3], c: 'H' }, { e: [30,20.9,5.6,1.5], c: 'V' }, { e: [30,20.7,3.8,0.7], c: 'H' });
+        p.push({ e: [30,13,6,6], c: 'S', head: true }, { e: [31.5,16,3.5,2], c: 'B', head: true }, { p: [[35,10.5],[40.5,12.5],[40,15.5],[38.2,14.6],[35,16]], c: 'H', head: true }); // tête de faucon : plumage brun, gorge claire
+        p.push({ p: [[24,7.6],[34,8],[34.2,9.6],[24,9.6]], c: 'H', head: true });
+        if (L >= 2) p.push({ p: [[31.5,15],[33,15],[32,18.5],[31,18.5]], c: 'M', head: true });
+        if (L >= 5) p.push({ p: [[32.5,7.5],[33.5,4.5],[35.2,5.5],[34.5,8.2]], c: 'H', head: true });
+        p.push({ r: [31,38,33,43], c: 'O', ol: true, tag: 'fl' }, { r: [30,44,35,44], c: 'H', tag: 'fl' });
+        if (L >= 3) p.push({ r: [40,10,40,44], c: 'H', tag: 'fa' }, { p: [[40,10],[43.5,8.5],[44,10],[41,11]], c: 'H', tag: 'fa' });
+        p.push({ e: [36.5,26,2.4,5], c: 'O', ol: true, tag: 'fa' }, { e: [38.6,30,1.8,1.8], c: 'O', ol: true, tag: 'fa' });
+        return p;
+      }
     }
   };
   // Génère la définition du sprite d'une espèce à un niveau : formes mises à l'échelle + points d'ancrage
@@ -1355,14 +1479,16 @@
   function rainbow() { return st && !st.dead && st.food > 80 && st.joy > 80; }
   var HUES = { bleu: 212, vert: 118, rose: 330, violet: 272, or: 46 };
   var SPIKES = { orange: '#2fd6c8', bleu: '#ffd23f', vert: '#ff8a1f', rose: '#5ef2ff', violet: '#7dff7a', or: '#ff4f6f' };
-  function creCols() {
-    if (!st || st.dead) return { O: '#9a9aae', L: '#cfcfdc', D: '#6a6a7e', B: '#d8d8e4', b: '#a8a8b8', S: '#7a7a8e', W: '#ffffff', K: K, V: '#5a5a6e', v: '#3e3e50', H: '#e0e0ea', T: '#e0e0ea', M: '#55556a' };
-    var s = Math.round(45 + st.joy * 0.5), lf = Math.round(st.food * 0.08), lvl = Math.max(0, cre.stage), leg = lvl === 9, sp = speciesOf(st);
+  // o (facultatif) : { sp, lvl } pour colorer une autre créature (teasers en arrière-plan) avec ses couleurs naturelles
+  function creCols(o) {
+    if (!o && (!st || st.dead)) return { O: '#9a9aae', L: '#cfcfdc', D: '#6a6a7e', B: '#d8d8e4', b: '#a8a8b8', S: '#7a7a8e', W: '#ffffff', K: K, V: '#5a5a6e', v: '#3e3e50', H: '#e0e0ea', T: '#e0e0ea', M: '#55556a' };
+    var s = o ? 80 : Math.round(45 + st.joy * 0.5), lf = o ? 5 : Math.round(st.food * 0.08), lvl = o ? o.lvl : Math.max(0, cre.stage), leg = lvl === 9, sp = o ? o.sp : speciesOf(st);
     // Teinte d'origine propre à chaque espèce (le phénix passe du jaune poussin au rouge feu), sinon celle achetée en boutique
-    var natural = sp === 'phenix' ? Math.round(50 - lvl * 4.6) : sp === 'renard' ? 22 : (leg ? 12 : 26);
-    var col = st.color || 'orange', hue = col === 'orange' ? natural : HUES[col];
+    var natural = ({ phenix: Math.round(50 - lvl * 4.6), renard: 22, lezard: 100, meduse: 158, horus: 36 })[sp];
+    if (natural === undefined) natural = leg ? 12 : 26;
+    var col = (!o && st.color) || 'orange', hue = col === 'orange' ? natural : HUES[col];
     if (col === 'or') { s = Math.min(100, s + 10); lf += 6; }
-    var rb = rainbow() ? 'hsl(' + Math.round(T * 120) % 360 + ',100%,60%)' : null;
+    var rb = !o && rainbow() ? 'hsl(' + Math.round(T * 120) % 360 + ',100%,60%)' : null;
     var c = {
       O: 'hsl(' + hue + ',' + s + '%,' + (48 + lf) + '%)', L: 'hsl(' + (hue + 12) + ',' + s + '%,' + (64 + lf) + '%)', D: 'hsl(' + (hue - 10) + ',' + s + '%,' + (34 + lf) + '%)',
       B: '#ffe9b8', b: '#e2be86', W: '#ffffff', K: K, V: '#7a3ae0', v: '#4a1c9a', H: '#fff3d0', T: '#ffffff',
@@ -1376,6 +1502,17 @@
     } else if (sp === 'renard') {
       c.B = '#ffffff'; c.b = '#d8d8e8'; c.S = '#8a2a4a'; c.M = leg ? '#5ef2ff' : '#c8204a'; // marques de kitsune
       c.T = rb || (leg ? '#5ef2ff' : '#ffffff');
+    } else if (sp === 'lezard') {
+      c.B = '#f0e2a0'; c.b = '#c8b46a'; c.S = rb || (leg ? '#ffd23f' : '#ff5a3a');
+      c.V = leg ? '#ff3d6e' : '#ff7a2e'; c.v = '#8a1030';
+    } else if (sp === 'meduse') { // peau de jade pâle, chevelure de serpents vert sombre à têtes claires
+      c.O = 'hsl(' + hue + ',' + Math.round(s * 0.6) + '%,' + (60 + lf) + '%)'; c.L = 'hsl(' + hue + ',' + Math.round(s * 0.6) + '%,' + (74 + lf) + '%)'; c.D = 'hsl(' + hue + ',' + Math.round(s * 0.6) + '%,' + (44 + lf) + '%)';
+      c.B = '#f0f8e0'; c.b = '#b8d0a0'; c.H = '#ffd23f';
+      c.S = rb || (leg ? '#14806a' : '#1f6a34'); c.T = leg ? '#5ef2c8' : '#7dd45a';
+      c.V = leg ? '#0e4a52' : '#1a4a2a'; c.v = leg ? '#2a9a8a' : '#3a7a4a';
+    } else if (sp === 'horus') {
+      c.B = '#f8f4e8'; c.b = '#d8ccb0'; c.H = rb || '#ffd23f'; c.S = leg ? '#b0782e' : '#8a5428';
+      c.V = '#2a5ad8'; c.v = '#1a2a8a'; c.M = '#14206a'; c.T = leg ? '#ff8a1f' : '#ff3d2e';
     }
     return c;
   }
@@ -1400,7 +1537,8 @@
     dead:   ['K...K.', '.K.K..', '..K...', '.K.K..', 'K...K.']
   };
   function drawEye(ex, ey, kind) {
-    var G = cre.stage === 9 ? '#ffc21a' : ({ dino: '#3fd46a', phenix: '#ff7a2e', renard: '#ffd23f' })[speciesOf(st)];
+    var sp = speciesOf(st);
+    var G = sp === 'meduse' && cre.stage >= 6 ? '#5ef2ff' : cre.stage === 9 ? '#ffc21a' : ({ dino: '#3fd46a', phenix: '#ff7a2e', renard: '#ffd23f', lezard: '#ff4f6f', meduse: '#7dff7a', horus: '#2a8aff' })[sp];
     var pal = { K: K, W: '#fff4d8', G: G, S: K };
     var pat = kind === 'dead' ? EYES.dead : (cre.blink > 0 || kind === 'sleep') ? EYES.blink : kind === 'happy' ? EYES.happy : kind === 'sad' ? EYES.sad : EYES.normal;
     for (var y = 0; y < 5; y++) for (var x = 0; x < 6; x++) { var c = pat[y][x]; if (c !== '.') D(ex - 1 + x, ey + y, pal[c]); }
@@ -1409,7 +1547,11 @@
   // Gueule : crocs au repos, sourire carnassier plein de dents, mâchoires dentées quand il mange
   function drawMouth(m, kind) {
     var x0 = m[0], x1 = m[1], y = m[2], x, F = '#fff4d8';
-    if (speciesOf(st) === 'phenix') { // un bec, pas des crocs : simple fente, entrouverte quand il est content ou mange
+    var sp = speciesOf(st);
+    if (sp === 'lezard' && kind !== 'dead' && kind !== 'sad' && (T % 3.2) < 0.35) { // langue fourchue qui goûte l'air
+      var tg = '#ff4f6f'; D(x1 + 1, y, tg); D(x1 + 2, y, tg); D(x1 + 3, y - 1, tg); D(x1 + 3, y + 1, tg);
+    }
+    if (sp === 'phenix' || sp === 'horus') { // un bec, pas des crocs : simple fente, entrouverte quand il est content ou mange
       row(y, x0, x1, K);
       if (kind === 'happy' || cre.eat > 0 && (cre.eat * 10 | 0) % 2 === 0) { row(y + 1, x0 + 1, x1 - 2, '#5a0a1a'); row(y + 2, x0 + 1, x1 - 2, K); }
       return;
@@ -1451,6 +1593,16 @@
         D(tx + x + sway, ty - y, cols[Math.min(3, Math.floor(d * 2.2))]);
       }
     }
+  }
+  // Regard pétrifiant de la gorgone (niveau 7+) : un rayon qui part de l'œil et balaie le décor
+  function drawGaze(sd) {
+    var a = Math.sin((T % 7) * Math.PI), ex = sd.eye[0] + 4, ey = sd.eye[1] + 2;
+    g.globalAlpha = 0.55 * a;
+    for (var d = 0; d < 46; d++) {
+      var w = Math.floor(d / 7);
+      for (var k = -w; k <= w; k++) if ((d + k + Math.floor(T * 20)) % 3) D(ex + d, ey + k, Math.abs(k) === w ? '#5ef2ff' : '#d8fff8');
+    }
+    g.globalAlpha = 1;
   }
   // Taches de boue quand il est sale, et des mouches quand c'est vraiment grave
   function drawDirt(grid, sd) {
@@ -1549,6 +1701,7 @@
       if (st && !st.dead && st.clean < 35) drawDirt(grid, sd);
       if (st && st.acc) drawAccessories(sd);
       if (legend && sd.flame && sd.tail) drawFlame(sd.tail[0], sd.tail[1]);
+      if (speciesOf(st) === 'meduse' && si >= 6 && kind !== 'dead' && kind !== 'sleep' && (T % 7) < 1) drawGaze(sd);
       if (kind === 'dead') {
         var hx = sd.halo[0], ht = sd.halo[1], gold = '#ffe25e';
         row(ht - 4, hx - 5, hx + 5, gold); row(ht - 2, hx - 5, hx + 5, gold); D(hx - 6, ht - 3, gold); D(hx + 6, ht - 3, gold);
@@ -1667,6 +1820,90 @@
       else setDialog('SYSTÈME', 'Trop tard, ce bonus n’est plus disponible.', 3000, true);
       apply(r.body, true);
     }).catch(function () {});
+  }
+
+  // ---------- Teasers : d'autres espèces passent au loin, s'arrêtent pour regarder, puis repartent ----------
+  var TEASE_LABEL = { dino: 'un dino', phenix: 'un phénix', renard: 'un renard mystique', lezard: 'un lézard géant', meduse: 'une gorgone', horus: 'un dieu-faucon ÉPIQUE' };
+  var QMARK = ['QQQ', '..Q', '.Q.', '...', '.Q.'];
+  var tease = null, teaseNext = 30 + Math.random() * 40;
+  function spawnTease(sp) {
+    if (!sp) {
+      var pool = Object.keys(SPECIES).filter(function (k) { return k !== speciesOf(st) && (!SPECIES[k].epic || Math.random() < 0.3); });
+      sp = pool[Math.random() * pool.length | 0];
+    }
+    var L = 3 + (Math.random() * 7 | 0), key = sp + ':' + L, dir = Math.random() < 0.5 ? 1 : -1;
+    if (!SPRITES[key]) SPRITES[key] = spriteDef(sp, L);
+    var sd = SPRITES[key];
+    tease = { sp: sp, lvl: L - 1, key: key, dir: dir, x: dir > 0 ? -sd.gw : W + sd.gw, walkT: 0, stopAt: W * (0.2 + Math.random() * 0.6), pause: 0, stopped: false };
+  }
+  function updateTease(dt) {
+    if (!tease) {
+      teaseNext -= dt;
+      if (teaseNext <= 0 && started && st && !cre.travel && cre.evo <= 0 && !document.hidden) { teaseNext = 80 + Math.random() * 120; spawnTease(); }
+      return;
+    }
+    var t = tease, sd = SPRITES[t.key];
+    if (t.pause > 0) { t.pause -= dt; return; }
+    t.x += t.dir * 14 * dt; t.walkT += dt;
+    if (!t.stopped && Math.abs(t.x - t.stopAt) < 1) {
+      t.stopped = true; t.pause = 2.5 + Math.random() * 2;
+      if (st && !st.dead && Date.now() > dlg.hold) setDialog('SYSTÈME', 'Au loin, ' + TEASE_LABEL[t.sp] + ' sauvage observe ' + st.name + '… Qui sortira du prochain œuf ?', 4500, true);
+    }
+    if (t.x < -sd.gw - 4 || t.x > W + sd.gw + 4) tease = null;
+  }
+  function drawTease() {
+    if (!tease) return;
+    var t = tease, sd = SPRITES[t.key], pose = 'idle', x, y;
+    if (t.pause <= 0) { var f = Math.floor(t.walkT * 7) % 4; pose = f === 0 ? 'w1' : f === 2 ? 'w2' : 'idle'; }
+    var grid = spriteGrid(t.key, pose), cols = creCols({ sp: t.sp, lvl: t.lvl });
+    var face = t.pause > 0 ? (cre.x > t.x ? 1 : -1) : t.dir, fl = face < 0;
+    var x0 = Math.round(t.x - sd.gw / 2), y0 = groundY - 4 - sd.gh, bob = t.pause <= 0 ? Math.floor(t.walkT * 7) % 2 : 0;
+    g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(x0 + Math.round(sd.gw * 0.25), groundY - 5, Math.round(sd.gw * 0.5), 1);
+    g.globalAlpha = 0.92;
+    for (y = 0; y < sd.gh; y++) for (x = 0; x < sd.gw; x++) {
+      var ch = grid[y][x]; if (ch === '.') continue;
+      g.fillStyle = cols[ch]; g.fillRect(x0 + (fl ? sd.gw - 1 - x : x), y0 + y + (y < sd.hip ? bob : 0), 1, 1);
+    }
+    var ex = sd.eye[0] + 2, ey = sd.eye[1] + 2 + bob;
+    g.fillStyle = '#fff4d8'; g.fillRect(x0 + (fl ? sd.gw - 2 - ex : ex - 1), y0 + ey, 2, 1);
+    g.fillStyle = K; g.fillRect(x0 + (fl ? sd.gw - 1 - ex : ex), y0 + ey, 1, 1);
+    g.globalAlpha = 1;
+    if (t.pause > 0 && Math.floor(T * 3) % 2) spr(QMARK, { Q: '#ffe25e' }, x0 + Math.round(sd.gw / 2) - 1, y0 - 2);
+  }
+
+  // ---------- Toucher l'écran : petits points en rafale (comptés et plafonnés par le serveur) ----------
+  var taps = { pending: 0, combo: 0, last: 0, count: 0, sending: false, capSaid: false };
+  function tapAt(clientX, clientY) {
+    var r = cv.getBoundingClientRect(), x = (clientX - r.left) / S, y = (clientY - r.top) / S, now = performance.now(), i;
+    taps.combo = now - taps.last < 650 ? taps.combo + 1 : 1; taps.last = now;
+    taps.pending++; taps.count++;
+    var hue = (taps.combo * 23) % 360, n = 4 + Math.min(10, taps.combo >> 2);
+    for (i = 0; i < n; i++) {
+      var a = Math.random() * Math.PI * 2, v = 40 + Math.random() * 60 + taps.combo * 2;
+      parts.push({ k: 'spark', x: x, y: y, vx: Math.cos(a) * v, vy: Math.sin(a) * v - 20, gr: 140, life: 0.35 + Math.random() * 0.3, col: 'hsl(' + (hue + i * 12) % 360 + ',100%,65%)' });
+    }
+    parts.push({ k: 'ring', x: x, y: y, vx: 0, vy: 0, gr: 0, life: 0.3, col: 'hsl(' + hue + ',100%,70%)' });
+    var left = st && st.me ? st.me.tapLeft : 0;
+    if (taps.count % 10 === 0 && left > 0) parts.push({ k: 'txt', text: '+1', col: '#ffe25e', x: x, y: y - 6, vx: 0, vy: -26, gr: 0, life: 1 });
+    if (taps.combo === 15) { parts.push({ k: 'txt', text: 'COMBO MAX !', col: '#ffd23f', x: x, y: y - 14, vx: 0, vy: -16, gr: 0, life: 1.6 }); shake = 0.15; }
+    else if (taps.combo >= 10 && taps.combo % 10 === 0) { parts.push({ k: 'txt', text: 'COMBO x' + taps.combo, col: 'hsl(' + hue + ',100%,70%)', x: x, y: y - 14, vx: 0, vy: -16, gr: 0, life: 1.3 }); shake = 0.08; }
+    // Toucher la créature elle-même : elle réagit
+    if (st && !st.dead && !cre.travel && Math.abs(x - cre.x) < 14 * C && y > mouth.top && y < groundY + 2) {
+      spawnHearts(1, 1);
+      if (cre.jy <= 0 && taps.combo % 4 === 0) jump(70);
+    }
+    Audio8.tap(taps.combo);
+    if (left <= 0 && st && st.me && !taps.capSaid) { taps.capSaid = true; setDialog('SYSTÈME', 'Plafond de points au toucher atteint pour aujourd’hui. Tu peux continuer pour le plaisir !', 4000, true); }
+  }
+  // Envoi groupé des touches toutes les 4 s (une seule requête, le serveur borne le compte au temps écoulé)
+  function flushTaps() {
+    if (!taps.pending || taps.sending) return;
+    var n = Math.min(1000, taps.pending); taps.pending -= n; taps.sending = true;
+    call('POST', '/api/tap', { n: n }).then(function (r) {
+      taps.sending = false;
+      if (r.code === 200 && r.body.gained) { var pb = $('ptsBox'); pb.classList.remove('bump'); void pb.offsetWidth; pb.classList.add('bump'); }
+      apply(r.body, false);
+    }).catch(function () { taps.sending = false; });
   }
 
   // ---------- Voyage vers un nouveau lieu (décapotable ou jetpack) ----------
@@ -1798,8 +2035,10 @@
     T += dt;
     updateCreature(dt);
     updateBonus(dt);
+    updateTease(dt);
     if (shake > 0) shake -= dt;
     if (rainbow() && Math.random() < dt * 2.5) spawnSparks(cre.x + (Math.random() - 0.5) * 30 * C, groundY - Math.random() * 30 * C, 2);
+    if (speciesOf(st) === 'horus' && st && !st.dead && cre.evo <= 0 && Math.random() < dt * 3) parts.push({ k: 'spark', x: cre.x + (Math.random() - 0.5) * 30 * C, y: groundY - Math.random() * 40 * C, vx: 0, vy: -12, gr: 0, life: 0.8, col: '#ffe98a' }); // aura de la créature épique
     if (cre.stage === 9 && st && !st.dead && cre.evo <= 0 && Math.random() < dt * 6) parts.push({ k: 'spark', x: cre.x + (Math.random() - 0.5) * 44 * C, y: groundY - Math.random() * 10 * C, vx: (Math.random() - 0.5) * 10, vy: -25 - Math.random() * 30, gr: -10, life: 1 + Math.random(), col: Math.random() < 0.5 ? '#ffd23f' : '#ff8a1f' });
 
     for (var i = parts.length - 1; i >= 0; i--) {
@@ -1848,6 +2087,7 @@
     var x, y, i;
     for (y = groundY; y < H; y += 16) for (x = 0; x < W; x += 16) g.drawImage(y === groundY ? tileTop : tileFill, x, y);
     drawExtras();
+    drawTease();
     drawProps(dt);
 
     if (scene.kind === 'mountain') drawSnow(dt);
@@ -1885,6 +2125,12 @@
         var bx = Math.floor(p.x), by = Math.floor(p.y), u = C;
         g.fillStyle = '#e43b44'; g.fillRect(bx - u, by - 2 * u, 2 * u, 4 * u); g.fillRect(bx - 2 * u, by - u, 4 * u, 2 * u);
         g.fillStyle = '#ffffff'; g.fillRect(bx - 2 * u, by, 4 * u, u); g.fillRect(bx - u, by - u, u, u);
+      } else if (p.k === 'ring') {
+        var rr = Math.round((0.3 - p.life) * 30) + 2, rx0 = Math.floor(p.x), ry0 = Math.floor(p.y);
+        g.fillStyle = p.col; g.globalAlpha = Math.min(1, p.life * 4);
+        g.fillRect(rx0 - rr, ry0, 1, 1); g.fillRect(rx0 + rr, ry0, 1, 1); g.fillRect(rx0, ry0 - rr, 1, 1); g.fillRect(rx0, ry0 + rr, 1, 1);
+        var dd = Math.round(rr * 0.7);
+        g.fillRect(rx0 - dd, ry0 - dd, 1, 1); g.fillRect(rx0 + dd, ry0 - dd, 1, 1); g.fillRect(rx0 - dd, ry0 + dd, 1, 1); g.fillRect(rx0 + dd, ry0 + dd, 1, 1);
       } else if (p.k === 'txt') {
         g.font = '8px "Press Start 2P", monospace'; g.textAlign = 'center';
         g.fillStyle = '#000'; g.fillText(p.text, Math.floor(p.x) + 1, Math.floor(p.y) + 1);
@@ -1983,6 +2229,60 @@
   function pad(n) { return ('000000' + n).slice(-6); }
 
   var SEGS = 20;
+  // Barre d'expérience : progression de l'âge entre le niveau actuel et le suivant
+  var XP_SEGS = 20;
+  (function () { var bar = $('xpBar'); for (var i = 0; i < XP_SEGS; i++) bar.appendChild(document.createElement('i')); })();
+  // Heure du prochain niveau, lisible : « 14H32 », « DEMAIN 09H12 » ou « SAMEDI 18H05 »
+  function clockAt(ts) {
+    var d = new Date(ts - offset), today = new Date(), hm = ('0' + d.getHours()).slice(-2) + 'H' + ('0' + d.getMinutes()).slice(-2);
+    var days = Math.round((new Date(d.getFullYear(), d.getMonth(), d.getDate()) - new Date(today.getFullYear(), today.getMonth(), today.getDate())) / 864e5);
+    if (days === 0) return hm;
+    if (days === 1) return 'DEMAIN ' + hm;
+    return d.toLocaleDateString('fr-FR', { weekday: 'long' }).toUpperCase() + ' ' + hm;
+  }
+  // Temps avant de mourir de faim sans repas (même règle que le serveur : MIAM se vide en 14 h, puis 3 h de survie à 0)
+  var FOOD_RATE = { espace: 1.3, ville: 1.3 };
+  function starveIn() {
+    var mult = (st.place && FOOD_RATE[st.place.key]) || 1;
+    return (st.food / (100 / 14 * mult) + 3) * 3600e3;
+  }
+  function renderHint(lvl, nextAt, untilNext) {
+    var el = $('xpHint'), name = st.name.toUpperCase();
+    if (lvl >= LEVELS.length - 1) { el.className = 'max'; el.textContent = 'LÉGENDE ULTIME : GARDE-LE EN VIE POUR LE PANTHÉON !'; return; }
+    var lvlTxt = 'NIV. ' + (lvl + 2);
+    // Alerte seulement s'il a vraiment faim : aux hauts niveaux, même le ventre plein ne tient pas jusqu'au palier suivant
+    if (st.food < 35 && starveIn() < untilNext) { el.className = 'danger'; el.textContent = 'SANS REPAS, ' + name + ' NE VERRA PAS LE ' + lvlTxt + ' !'; return; }
+    var low = st.food < 25 || st.joy < 25 || st.clean < 25 || st.fit < 25 || st.sleep < 25;
+    el.className = low ? 'need' : '';
+    el.textContent = low
+      ? 'SI TOUT VA BIEN, ' + lvlTxt + ' VERS ' + clockAt(nextAt) + '… MAIS ' + name + ' A BESOIN DE TOI !'
+      : 'SI TOUT VA BIEN, ' + name + ' PASSERA ' + lvlTxt + ' VERS ' + clockAt(nextAt);
+  }
+  function renderXp(now) {
+    var box = $('xp');
+    $('xpHint').hidden = !st || st.dead;
+    if (!st || st.dead) { box.hidden = true; return; }
+    box.hidden = false;
+    var lvl = cre.stage < 0 ? stageOf(st) : cre.stage, segs = $('xpBar').children, i;
+    if (lvl >= LEVELS.length - 1) {
+      box.classList.add('max');
+      for (i = 0; i < segs.length; i++) segs[i].className = 'on';
+      $('xpText').textContent = 'NIVEAU MAX';
+      renderHint(lvl, 0, 0);
+      return;
+    }
+    box.classList.remove('max');
+    var age = now - st.born, from = LEVELS[lvl], to = LEVELS[lvl + 1];
+    var p = Math.max(0, Math.min(1, (age - from) / (to - from))), filled = p * XP_SEGS;
+    for (i = 0; i < segs.length; i++) {
+      var f = filled - i;
+      segs[i].className = f >= 1 ? 'on' : f > 0 ? 'part' : '';
+      segs[i].style.setProperty('--p', f > 0 && f < 1 ? Math.round(f * 100) + '%' : '0%');
+    }
+    renderHint(lvl, st.born + to, Math.max(0, to - age));
+    $('xpText').textContent = 'VERS NIV. ' + (lvl + 2) + ' · ' + Math.floor(p * 100) + ' % · ENCORE ' + fmt(Math.max(0, to - age));
+  }
+
   var BARS = [['barFood', 'food'], ['barJoy', 'joy'], ['barClean', 'clean'], ['barFit', 'fit'], ['barSleep', 'sleep']];
   BARS.forEach(function (b) {
     var el = $(b[0]).querySelector('.segs');
@@ -1994,7 +2294,7 @@
     $(id).classList.toggle('low', v < 25);
   }
 
-  var ACTS = [['feed', 'NOURRIR'], ['pet', 'CÂLINER'], ['wash', 'LAVER'], ['play', 'JOUER'], ['rock', 'BERCER']];
+  var ACTS = [['feed', 'NOURRIR'], ['pet', 'CÂLINER'], ['wash', 'LAVER'], ['play', 'JOUER'], ['rock', 'BERCER'], ['heal', 'SOIGNER']];
   var PLACE_NAMES = { montagne: 'MONTAGNE', plage: 'PLAGE', espace: 'ESPACE', ville: 'VILLE' };
   var lastPts = null;
 
@@ -2006,6 +2306,7 @@
     $('name').classList.toggle('rainbow', rainbow());
     var lvl = cre.stage < 0 ? stageOf(st) : cre.stage;
     $('age').textContent = SPECIES[speciesOf(st)].name + ' · NIV. ' + (lvl + 1) + ' · ' + (st.dead ? 'A VÉCU ' + fmt(st.deadAt - st.born) : 'ÂGE ' + fmt(now - st.born));
+    renderXp(now);
     $('place').textContent = st.place ? 'SÉJOUR ' + PLACE_NAMES[st.place.key] + ' · ENCORE ' + fmt(Math.max(0, st.place.until - now)) : '';
     $('score').textContent = pad(st.actions);
     $('best').textContent = st.best ? st.best.name.toUpperCase() + ' ' + fmt(st.best.ms) : '---';
@@ -2029,6 +2330,7 @@
 
     renderLog();
     $('nickBtn').textContent = st.me ? st.me.nick.toUpperCase() : '…';
+    if (st.me) $('achBtn').textContent = 'HAUTS FAITS ' + st.me.achCount + '/' + st.me.achTotal;
     $('ticker').textContent = st.events[0] ? '» ' + st.events[0].text : '';
 
     if (Date.now() > dlg.hold) {
@@ -2036,6 +2338,7 @@
       else setDialog(st.name.toUpperCase(), say(needKey()));
     }
     renderShop(false);
+    renderHall();
   }
 
   // Journal avec likes. On ne reconstruit la liste que si elle a changé, pour ne pas perdre un clic en cours.
@@ -2092,6 +2395,124 @@
       else { Audio8.fx('deny'); setDialog('SYSTÈME', r.body.error === 'cooldown' ? 'Doucement, attends quelques secondes avant de rechanger.' : 'Pseudo refusé.', 3000, true); }
       apply(r.body, true);
     }).catch(function () {});
+  }
+
+  /* ---------- Hauts faits ---------- */
+  var achQueue = [], achShowing = false, achOpen = false;
+  function queueAch(list) {
+    list.forEach(function (a) { achQueue.push(a); });
+    if (!achShowing) nextAch();
+  }
+  function nextAch() {
+    var a = achQueue.shift(), t = $('achToast');
+    if (!a) { achShowing = false; return; }
+    achShowing = true;
+    $('achToastName').textContent = a.name.toUpperCase();
+    $('achToast').querySelector('small').textContent = a.secret ? 'HAUT FAIT SECRET DÉBLOQUÉ !' : 'HAUT FAIT DÉBLOQUÉ !';
+    $('achToastDesc').textContent = a.desc + (a.pts ? ' · +' + a.pts + ' PTS' : '');
+    t.style.top = Math.ceil($('hud').getBoundingClientRect().bottom + 14) + 'px'; // juste sous le HUD
+    t.classList.add('show');
+    Audio8.fx('ach'); spawnSparks(cre.x, mouth.top, 24, '#ffd23f');
+    setTimeout(function () { t.classList.remove('show'); setTimeout(nextAch, 450); }, 3600);
+  }
+  function openAch() {
+    if (!st) return;
+    achOpen = true; $('achm').hidden = false; Audio8.fx('blip');
+    call('GET', '/api/achievements').then(function (r) { if (achOpen && r.body.list) renderAch(r.body.list); }).catch(function () {});
+  }
+  function closeAch() { achOpen = false; $('achm').hidden = true; }
+  function renderAch(list) {
+    var got = list.filter(function (a) { return a.at; }).length, ul = $('achList');
+    // Les secrets encore cachés en fin de liste
+    list = list.filter(function (a) { return !(a.secret && !a.at); }).concat(list.filter(function (a) { return a.secret && !a.at; }));
+    $('achTitle').textContent = 'HAUTS FAITS ' + got + '/' + list.length;
+    ul.textContent = '';
+    list.forEach(function (a) {
+      var li = document.createElement('li'), ic = document.createElement('i'), box = document.createElement('div'), b = document.createElement('b'), d = document.createElement('span');
+      ic.className = 'trophy' + (a.at ? '' : ' off');
+      b.textContent = a.name.toUpperCase(); d.textContent = a.desc + (a.pts ? ' (+' + a.pts + ' pts)' : '');
+      box.appendChild(b); box.appendChild(d);
+      if (a.secret && !a.at) {
+        li.className = 'secret';
+      } else if (a.at) {
+        li.className = 'got' + (a.secret ? ' wassecret' : '');
+        var em = document.createElement('em'); em.textContent = 'DÉBLOQUÉ LE ' + new Date(a.at).toLocaleDateString('fr-FR'); box.appendChild(em);
+      } else {
+        var bar = document.createElement('div'), fill = document.createElement('div');
+        bar.className = 'achbar'; fill.style.width = Math.round(100 * a.progress / a.n) + '%'; bar.appendChild(fill); box.appendChild(bar);
+        var pr = document.createElement('em'); pr.textContent = a.progress + ' / ' + a.n; pr.style.color = '#5ef2ff'; box.appendChild(pr);
+      }
+      li.appendChild(ic); li.appendChild(box); ul.appendChild(li);
+    });
+  }
+
+  /* ---------- Panthéon : top 10 des plus longues vies ---------- */
+  var hallOpen = false, hallBoard = 'creatures', leaders = null, leadersAt = 0;
+  var BOARD_HELP = {
+    creatures: 'LES CRÉATURES QUI ONT VÉCU LE PLUS LONGTEMPS. GARDE LA TIENNE EN VIE POUR GRIMPER !',
+    earned: 'LES JOUEURS QUI ONT GAGNÉ LE PLUS DE POINTS DEPUIS LEUR ARRIVÉE.',
+    spent: 'LES PLUS GROS DÉPENSIERS DE LA BOUTIQUE.',
+    presence: 'LES JOUEURS QUI ONT PASSÉ LE PLUS DE TEMPS AUPRÈS DE LA BÊTE.'
+  };
+  function openHall() { if (!st) return; hallOpen = true; $('hallm').hidden = false; Audio8.fx('blip'); loadLeaders(); renderHall(); }
+  function closeHall() { hallOpen = false; $('hallm').hidden = true; }
+  function loadLeaders() {
+    if (Date.now() - leadersAt < 10000) return;
+    leadersAt = Date.now();
+    call('GET', '/api/leaders').then(function (r) { if (r.code === 200) { leaders = r.body; renderHall(); } }).catch(function () {});
+  }
+  function boardVal(b, v) { return b === 'presence' ? fmt(v * 60000) : v + ' PTS'; }
+  function renderBoard() {
+    var ol = $('hallList'), b = hallBoard, top = leaders ? leaders.boards[b] || [] : [], me = leaders && leaders.me[b];
+    ol.textContent = '';
+    $('hallEmpty').hidden = top.length > 0;
+    $('hallEmpty').textContent = leaders ? 'PERSONNE AU CLASSEMENT POUR L’INSTANT… À TOI DE JOUER !' : 'CHARGEMENT…';
+    function line(rank, nick, val, mine) {
+      var li = document.createElement('li'), rk = document.createElement('div'), nb = document.createElement('b'), life = document.createElement('div');
+      if (mine) li.className = 'me';
+      rk.className = 'rk'; rk.textContent = '#' + rank;
+      nb.textContent = nick.toUpperCase();
+      life.className = 'life'; life.textContent = boardVal(b, val);
+      li.appendChild(rk); li.appendChild(nb); li.appendChild(life);
+      ol.appendChild(li);
+    }
+    top.forEach(function (r, i) { line(i + 1, r.nick, r.val, r.me); });
+    // Hors du top 10 : on affiche quand même sa propre ligne, avec son rang
+    if (me && !top.some(function (r) { return r.me; })) {
+      var gap = document.createElement('li'); gap.className = 'gap'; gap.textContent = '· · ·'; ol.appendChild(gap);
+      line(me.rank, me.nick, me.val, true);
+    }
+  }
+  function renderHall() {
+    if (!hallOpen || !st) return;
+    $('hallHelp').textContent = BOARD_HELP[hallBoard];
+    var tabs = $('hallTabs').children;
+    for (var t = 0; t < tabs.length; t++) tabs[t].classList.toggle('on', tabs[t].getAttribute('data-board') === hallBoard);
+    if (hallBoard !== 'creatures') { loadLeaders(); return renderBoard(); }
+    $('hallEmpty').textContent = 'AUCUNE CRÉATURE N’EST ENCORE ENTRÉE AU PANTHÉON… LA TIENNE SERA PEUT-ÊTRE LA PREMIÈRE.';
+    var rows = (st.hall || []).map(function (h) { return { h: h, alive: false }; });
+    // La créature actuelle, à la place qu'elle occuperait si elle mourait maintenant
+    if (!st.dead) {
+      var lived = Date.now() + offset - st.born;
+      var cur = { name: st.name, species: st.species, lived: lived, level: stageOf(st) + 1, actions: st.actions, hatchedBy: st.hatchedBy };
+      var pos = rows.filter(function (r) { return r.h.lived >= lived; }).length;
+      if (pos < 10) rows.splice(pos, 0, { h: cur, alive: true });
+    }
+    rows = rows.slice(0, 10);
+    var ol = $('hallList'); ol.textContent = '';
+    $('hallEmpty').hidden = rows.length > 0;
+    rows.forEach(function (r, i) {
+      var h = r.h, li = document.createElement('li'), rk = document.createElement('div'), b = document.createElement('b'), info = document.createElement('span'), life = document.createElement('div');
+      if (r.alive) li.className = 'alive';
+      rk.className = 'rk'; rk.textContent = '#' + (i + 1);
+      var sp = h.species && SPECIES[h.species] ? SPECIES[h.species].name : '?';
+      b.textContent = h.name.toUpperCase();
+      info.textContent = sp + (h.level ? ' · NIV. ' + h.level : '') + (h.actions !== null && h.actions !== undefined ? ' · ' + h.actions + ' SOINS' : '') +
+        (h.hatchedBy ? ' · ÉCLOS PAR ' + h.hatchedBy.toUpperCase() : '') + (h.deadAt ? ' · † ' + new Date(h.deadAt).toLocaleDateString('fr-FR') : '');
+      life.className = 'life'; life.textContent = fmt(h.lived);
+      li.appendChild(rk); li.appendChild(b); li.appendChild(life); li.appendChild(info);
+      ol.appendChild(li);
+    });
   }
 
   function pickMusic() {
@@ -2201,6 +2622,7 @@
     if (!data || data.food === undefined) return;
     var prev = st;
     st = data; offset = data.now - Date.now(); if (data.cooldownMs) COOLDOWN = data.cooldownMs;
+    if (data.me && data.me.achNew && data.me.achNew.length) queueAch(data.me.achNew);
     var placeOf = function (d) { return d && d.place && !d.dead ? d.place.key : null; };
     if (prev && prev.events && !mine) {
       var before = {}, gained = 0, forMe = false;
@@ -2253,11 +2675,15 @@
     pet: function () { Audio8.fx('pet'); Audio8.fx('jump'); jump(150); spawnHearts(8, C); floatText('LOVE!', '#ff5ec8'); },
     wash: function () { Audio8.fx('wash'); spawnBubbles(16); floatText('SPLASH!', '#5ef2ff'); },
     play: function () { Audio8.fx('play'); jump(190); cre.dash = 2.2; spawnBall(); floatText('YOUPI!', '#7dff7a'); },
-    rock: function () { Audio8.fx('rock'); spawnZ(3); floatText('DODO…', '#aab4ff'); }
+    rock: function () { Audio8.fx('rock'); spawnZ(3); floatText('DODO…', '#aab4ff'); },
+    heal: function () {
+      Audio8.fx('heal'); floatText('SOIN!', '#7dff7a');
+      for (var i = 0; i < 14; i++) parts.push({ k: 'txt', text: '+', col: i % 2 ? '#7dff7a' : '#ffffff', x: cre.x + (Math.random() - 0.5) * 28 * C, y: groundY - Math.random() * 20 * C, vx: 0, vy: -20 - Math.random() * 25, gr: 0, life: 1 + Math.random() * 0.6 });
+    }
   };
 
   function act(kind) {
-    if (!started || !st || shopOpen || nickOpen) return;
+    if (!started || !st || shopOpen || nickOpen || achOpen || hallOpen) return;
     if (kind === 'hatch' ? !st.dead : st.dead) return;
     press(kind);
     var left = lastAct + COOLDOWN - Date.now();
@@ -2292,6 +2718,7 @@
       op = { op: 'age', hours: (nxt - 3000) / 3600e3 };
     }
     if (op.op === 'bonus') { devOp({ op: 'cooldowns' }); setTimeout(spawnBonus, 300); return; }
+    if (op.op === 'tease') { spawnTease(); tease.x = tease.dir > 0 ? W * 0.1 : W * 0.9; return; }
     if (op.op === 'cooldowns') { lastAct = 0; try { localStorage.removeItem('lastAct'); } catch (e) {} }
     call('POST', '/api/dev', op).then(function (r) {
       if (r.code !== 200) return setDialog('SYSTÈME', 'Outil de dev refusé (' + r.code + ').', 3000, true);
@@ -2350,7 +2777,10 @@
   })();
 
   $('title').addEventListener('click', start);
-  cv.addEventListener('pointerdown', function (e) { if (started && !shopOpen && bonusHit(e.clientX, e.clientY)) claimBonus(); });
+  cv.addEventListener('pointerdown', function (e) {
+    if (!started || shopOpen) return;
+    if (bonusHit(e.clientX, e.clientY)) claimBonus(); else tapAt(e.clientX, e.clientY);
+  });
   cv.addEventListener('pointermove', function (e) { cv.style.cursor = bonusHit(e.clientX, e.clientY) ? 'pointer' : ''; });
   ACTS.forEach(function (a) { $(a[0]).onclick = function () { act(a[0]); }; });
   $('hatch').onclick = function () { act('hatch'); };
@@ -2358,6 +2788,16 @@
   $('fs').onclick = function (e) { e.currentTarget.blur(); toggleFs(); };
   $('shopBtn').onclick = function (e) { e.currentTarget.blur(); if (started) openShop(); };
   $('shopClose').onclick = closeShop;
+  $('achBtn').onclick = function (e) { e.currentTarget.blur(); if (started) openAch(); };
+  $('achClose').onclick = closeAch;
+  $('hallBtn').onclick = function (e) { e.currentTarget.blur(); if (started) openHall(); };
+  $('hallClose').onclick = closeHall;
+  $('hallm').addEventListener('click', function (e) { if (e.target === $('hallm')) closeHall(); });
+  $('hallTabs').addEventListener('click', function (e) {
+    var b = e.target.getAttribute && e.target.getAttribute('data-board');
+    if (b) { e.target.blur(); hallBoard = b; Audio8.fx('blip'); renderHall(); }
+  });
+  $('achm').addEventListener('click', function (e) { if (e.target === $('achm')) closeAch(); });
   $('nickBtn').onclick = function (e) { e.currentTarget.blur(); if (started) openNick(); };
   $('nickClose').onclick = closeNick;
   $('nickOk').onclick = saveNick;
@@ -2386,14 +2826,18 @@
     var k = e.key.toLowerCase();
     if (!started) { if (k === 'enter' || k === ' ' || k.length === 1) { e.preventDefault(); start(); } return; }
     if (shopOpen) { if (k === 'escape' || k === 's') closeShop(); return; }
+    if (achOpen) { if (k === 'escape' || k === 'h') closeAch(); return; }
+    if (hallOpen) { if (k === 'escape' || k === 't') closeHall(); return; }
     if (nickOpen) { if (k === 'escape') closeNick(); else if (k === 'enter') { e.preventDefault(); saveNick(); } return; }
-    var n = '12345'.indexOf(k);
+    var n = '123456'.indexOf(k);
     if (n >= 0) act(ACTS[n][0]);
     else if (k === 'arrowleft' || k === 'a') act('feed');
     else if (k === 'arrowright' || k === 'b') act('pet');
     else if (k === 'enter' || k === ' ') { e.preventDefault(); if (st && st.dead) act('hatch'); }
     else if (k === 's') openShop();
     else if (k === 'p') openNick();
+    else if (k === 'h') openAch();
+    else if (k === 't') openHall();
     else if (k === '²' || k === '`') toggleDev();
     else if (k === 'm') toggleMute();
     else if (k === 'f') toggleFs();
@@ -2412,5 +2856,6 @@
   refresh();
   setInterval(refresh, 5000);
   setInterval(ping, 60000);
+  setInterval(flushTaps, 4000);
   setInterval(renderHud, 1000);
 })();
