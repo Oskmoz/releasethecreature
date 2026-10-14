@@ -1,5 +1,6 @@
 'use strict';
 const http = require('http');
+const crypto = require('crypto');
 const fs = require('fs');
 const path = require('path');
 
@@ -13,6 +14,11 @@ const DEV = process.env.DEV === '1' && process.env.NODE_ENV !== 'production';
 // Derrière Traefik, la vraie IP est la dernière entrée de X-Forwarded-For. Sans proxy (local),
 // on ignore cet en-tête : sinon n'importe qui pourrait changer d'IP pour contourner les limites.
 const TRUST_PROXY = process.env.TRUST_PROXY === '1';
+// Admin (prod comprise) : les mêmes outils que le mode dev, réservés à qui connaît ADMIN_TOKEN.
+// Le jeton ne quitte jamais le serveur : le client le saisit une fois et l'envoie dans l'en-tête X-Admin.
+// Trop court ou absent = admin désactivé (32 caractères minimum, ex. : openssl rand -hex 32).
+const ADMIN_TOKEN = (process.env.ADMIN_TOKEN || '').length >= 32 ? process.env.ADMIN_TOKEN : null;
+if (process.env.ADMIN_TOKEN && !ADMIN_TOKEN) console.warn('ADMIN_TOKEN ignoré : 32 caractères minimum');
 // Google Analytics : désactivé tant que GA_ID n'est pas défini (format G-XXXXXXX vérifié).
 // Les domaines de Google ne sont autorisés dans la CSP que dans ce cas, et le client ne charge
 // le script qu'après le consentement du visiteur (bandeau cookies).
@@ -446,6 +452,22 @@ function clientIp(req) {
   return req.socket.remoteAddress || 'unknown';
 }
 
+// Vérification du jeton admin : comparaison en temps constant, et 5 essais ratés par IP bloquent l'IP 15 min
+const adminFails = new Map();
+const ADMIN_MAX_FAILS = 5, ADMIN_LOCK_MS = 15 * 60 * 1000;
+function isAdmin(req) {
+  const tok = req.headers['x-admin'];
+  if (!ADMIN_TOKEN || typeof tok !== 'string' || !tok) return false;
+  const ip = clientIp(req), now = Date.now(), f = adminFails.get(ip);
+  if (f && f.n >= ADMIN_MAX_FAILS && now - f.at < ADMIN_LOCK_MS) return false;
+  const hash = (x) => crypto.createHash('sha256').update(x).digest();
+  if (crypto.timingSafeEqual(hash(tok), hash(ADMIN_TOKEN))) { adminFails.delete(ip); return true; }
+  const n = f && now - f.at < ADMIN_LOCK_MS ? f.n + 1 : 1;
+  adminFails.set(ip, { n, at: now });
+  if (n === ADMIN_MAX_FAILS) console.warn('admin : IP ' + ip + ' bloquée 15 min après ' + n + ' essais ratés');
+  return false;
+}
+
 // Seau à jetons par IP : on autorise des rafales courtes, puis un débit moyen
 const buckets = new Map();
 function allow(ip, kind) {
@@ -638,9 +660,10 @@ function bonus(req, res, body) {
 // --- Mini-jeux : une occasion apparaît de temps en temps, une partie dure 20 s ---
 // Le serveur ouvre la partie (start) et refuse un score rendu trop tôt ; le score est borné par jeu.
 const GAMES = {
-  catch: { name: 'Attrape-miam', max: 45 },
-  mole: { name: 'Tape-cornichons', max: 45 },
-  rhythm: { name: 'Danse-rythme', max: 90 }
+  // perPt = combien de points de score pour 1 point gagné (le rythme compte double : 2 par note parfaite)
+  catch: { name: 'Attrape-miam', max: 45, perPt: 1 },
+  mole: { name: 'Tape-cornichons', max: 45, perPt: 1 },
+  rhythm: { name: 'Danse-rythme', max: 90, perPt: 2 }
 };
 const GAME_MS = 20 * 1000;
 const GAME_COOLDOWN = 2 * MIN;  // au plus une partie toutes les 2 min
@@ -664,7 +687,7 @@ function gameEnd(req, res, body) {
   const G = GAMES[g.kind], score = Math.max(0, Math.min(G.max, Math.round(Number(body && body.score) || 0)));
   const day = today(now);
   if (v.gameDay !== day) { v.gameDay = day; v.gameCount = 0; }
-  const gained = v.gameCount < GAME_DAILY ? Math.min(GAME_PTS_MAX, Math.round(score * 40 / G.max * 1.2)) : 0;
+  const gained = v.gameCount < GAME_DAILY ? Math.min(GAME_PTS_MAX, Math.floor(score / G.perPt)) : 0;
   v.gameCount++; v.acted = true;
   v.gameBest = v.gameBest || {};
   const record = score > (v.gameBest[g.kind] || 0);
@@ -674,7 +697,7 @@ function gameEnd(req, res, body) {
   if (gained) track(v, 'gamePts', gained, now);
   // Hauts faits de score : le compteur garde le meilleur score
   v.st['best_' + g.kind] = Math.max(v.st['best_' + g.kind] || 0, score); checkAch(v, now);
-  addEvent(actor(v) + ' a marqué ' + score + ' à ' + G.name + (record && score > 0 ? ' : record perso !' : ' !') + (gained ? ' (+' + gained + ' pts)' : ''), now, vid);
+  addEvent(actor(v) + ' a fait un score de ' + score + ' à ' + G.name + (record && score > 0 ? ', record perso !' : ' !') + (gained ? ' +' + gained + ' pts' : ''), now, vid);
   save();
   send(res, 200, { ...view(now, vid), gained, gameScore: score, gameRecord: record, gameBest: v.gameBest[g.kind] });
 }
@@ -801,7 +824,9 @@ function devTool(req, res, body) {
   settle(now);
   const num = (x, def) => (typeof x === 'number' && isFinite(x) ? x : def);
   switch (body.op) {
+    case 'whoami': return send(res, 200, { admin: true });
     case 'points': if (v) v.pts = Math.max(0, Math.round(num(body.pts, 1000))); break;
+    case 'addPts': if (v) v.pts = Math.max(0, v.pts + Math.round(num(body.pts, 0))); break;
     case 'stats':
       if (state.deadAt) break;
       for (const k of STATS) if (typeof body[k] === 'number') state[k] = clamp(body[k]);
@@ -818,7 +843,8 @@ function devTool(req, res, body) {
     case 'kill': if (!state.deadAt) { state.zeroAt = now - GRACE_MS; die(); state.hatchableAt = now + 5000; } break;
     default: return send(res, 400, { error: 'unknown_op' });
   }
-  addEvent('[DEV] ' + body.op, now);
+  if (DEV) addEvent('[DEV] ' + body.op, now); // en prod, les gestes de l'admin restent discrets
+  else console.log('admin : ' + body.op + (v ? ' (' + v.nick + ')' : ''));
   save();
   send(res, 200, view(now, vid));
 }
@@ -919,7 +945,8 @@ function route(req, res) {
       if (name === 'tap') return readJson(req, res, (body) => tap(req, res, body));
       if (name === 'game/start') return readJson(req, res, (body) => gameStart(req, res, body));
       if (name === 'game/end') return readJson(req, res, (body) => gameEnd(req, res, body));
-      if (DEV && name === 'dev') return readJson(req, res, (body) => devTool(req, res, body));
+      // Outils : ouverts en mode dev, sinon réservés à l'admin (404 pour les autres, comme si la route n'existait pas)
+      if (name === 'dev' && (DEV || isAdmin(req))) return readJson(req, res, (body) => devTool(req, res, body));
     }
     return send(res, 404, { error: 'not_found' });
   }

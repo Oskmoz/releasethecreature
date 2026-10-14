@@ -2953,8 +2953,8 @@
     $('place').textContent = st.place ? 'SÉJOUR ' + PLACE_NAMES[st.place.key] + ' · ENCORE ' + fmt(Math.max(0, st.place.until - now)) : '';
     $('score').textContent = pad(st.actions);
     $('best').textContent = st.best ? st.best.name.toUpperCase() + ' ' + fmt(st.best.ms) : '---';
-    $('devBtn').hidden = !st.dev;
-    if (!st.dev) $('devpanel').hidden = true;
+    $('devBtn').hidden = !st.dev && !adminOn;
+    if (!st.dev && !adminOn) $('devpanel').hidden = true;
     var pts = st.me ? st.me.pts : 0;
     $('pts').textContent = pts;
     if (lastPts !== null && pts > lastPts) { var pb = $('ptsBox'); pb.classList.remove('bump'); void pb.offsetWidth; pb.classList.add('bump'); }
@@ -3333,6 +3333,7 @@
   }
   function call(method, url, body) {
     var o = { method: method, headers: { 'X-Visitor': VID } };
+    if (url === '/api/dev' && adminToken) o.headers['X-Admin'] = adminToken; // jeton admin : seulement vers les outils
     if (body) { o.headers['Content-Type'] = 'application/json'; o.body = JSON.stringify(body); }
     return fetch(url, o).then(function (r) { return r.json().then(function (j) { return { code: r.status, body: j }; }); });
   }
@@ -3416,14 +3417,44 @@
     if (op.op === 'bonus') { devOp({ op: 'cooldowns' }); setTimeout(spawnBonus, 300); return; }
     if (op.op === 'emote') { cre.emote = null; startEmote(op.k); return; }
     if (op.op === 'game') { gameOffer = null; gameNext = 0; if (op.kind) { var ks0 = op.kind; setTimeout(function () { if (gameOffer) gameOffer.kind = ks0; }, 50); } toggleDev(); return; }
+    if (op.op === 'logout') { adminLogout(); return; }
     if (op.op === 'tease') { spawnTease(); tease.x = tease.dir > 0 ? W * 0.1 : W * 0.9; return; }
     if (op.op === 'cooldowns') { lastAct = 0; try { localStorage.removeItem('lastAct'); } catch (e) {} }
     call('POST', '/api/dev', op).then(function (r) {
-      if (r.code !== 200) return setDialog('SYSTÈME', 'Outil de dev refusé (' + r.code + ').', 3000, true);
+      if (r.code !== 200) return setDialog('SYSTÈME', 'Outil refusé (' + r.code + ').', 3000, true);
       Audio8.fx('blip'); apply(r.body, true); renderShop(true);
     });
   }
-  function toggleDev() { if (st && st.dev) $('devpanel').hidden = !$('devpanel').hidden; }
+  function toggleDev() { if (st && (st.dev || adminOn)) $('devpanel').hidden = !$('devpanel').hidden; }
+
+  // ---------- Admin : mêmes outils qu'en dev, en prod, pour qui connaît le jeton (ADMIN_TOKEN côté serveur) ----------
+  // Ouvrir /?admin une fois : le jeton est demandé, vérifié par le serveur, puis gardé dans ce navigateur.
+  var adminToken = null, adminOn = false;
+  try { adminToken = localStorage.getItem('adminToken'); } catch (e) {}
+  function adminCheck(fresh) {
+    if (!adminToken) return;
+    call('POST', '/api/dev', { op: 'whoami' }).then(function (r) {
+      adminOn = r.code === 200 && r.body.admin === true;
+      if (!adminOn) {
+        adminToken = null; try { localStorage.removeItem('adminToken'); } catch (e) {}
+        if (fresh) setDialog('SYSTÈME', 'Jeton admin refusé.', 4000, true);
+        return;
+      }
+      $('devBtn').textContent = st && st.dev ? 'DEV' : 'ADMIN';
+      if (fresh) setDialog('SYSTÈME', 'Mode admin activé sur ce navigateur.', 4000, true);
+      renderHud();
+    }).catch(function () {});
+  }
+  function adminLogout() {
+    adminToken = null; adminOn = false; $('devpanel').hidden = true;
+    try { localStorage.removeItem('adminToken'); } catch (e) {}
+    setDialog('SYSTÈME', 'Mode admin désactivé sur ce navigateur.', 4000, true); renderHud();
+  }
+  if (/[?&]admin\b/.test(location.search)) {
+    try { history.replaceState(null, '', location.pathname); } catch (e) {}
+    var tokIn = window.prompt('Jeton admin :');
+    if (tokIn) { adminToken = tokIn.trim(); try { localStorage.setItem('adminToken', adminToken); } catch (e) {} adminCheck(true); }
+  } else adminCheck(false);
   $('devpanel').addEventListener('click', function (e) {
     var d = e.target.getAttribute && e.target.getAttribute('data-dev');
     if (d) { e.target.blur(); devOp(JSON.parse(d)); }
