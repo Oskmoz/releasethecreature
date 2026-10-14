@@ -13,6 +13,11 @@ const DEV = process.env.DEV === '1' && process.env.NODE_ENV !== 'production';
 // Derrière Traefik, la vraie IP est la dernière entrée de X-Forwarded-For. Sans proxy (local),
 // on ignore cet en-tête : sinon n'importe qui pourrait changer d'IP pour contourner les limites.
 const TRUST_PROXY = process.env.TRUST_PROXY === '1';
+// Google Analytics : désactivé tant que GA_ID n'est pas défini (format G-XXXXXXX vérifié).
+// Les domaines de Google ne sont autorisés dans la CSP que dans ce cas, et le client ne charge
+// le script qu'après le consentement du visiteur (bandeau cookies).
+const GA_ID = /^G-[A-Z0-9]{4,15}$/.test(process.env.GA_ID || '') ? process.env.GA_ID : null;
+if (process.env.GA_ID && !GA_ID) console.warn('GA_ID ignoré : format attendu G-XXXXXXXXXX');
 
 // --- Limites anti-spam (par IP) ---
 const LIMITS = {
@@ -374,7 +379,7 @@ function view(now, vid) {
     })),
     nickParts: { nouns: NICK_NOUNS, adjs: NICK_ADJS },
     asleepUntil: s.asleepUntil, place: s.place, color: s.color, acc: s.acc,
-    buyCooldown: {}, shop: SHOP, me: v ? { pts: v.pts, nick: v.nick, achCount: Object.keys(v.ach || {}).length, achTotal: ACHIEVEMENTS.length, achNew: takeNewAch(v), tapLeft: tapLeft(v, now), ...bonusInfo(v, now) } : null, dev: DEV
+    buyCooldown: {}, shop: SHOP, ga: GA_ID, me: v ? { pts: v.pts, nick: v.nick, achCount: Object.keys(v.ach || {}).length, achTotal: ACHIEVEMENTS.length, achNew: takeNewAch(v), tapLeft: tapLeft(v, now), ...bonusInfo(v, now) } : null, dev: DEV
   };
   for (const k of STATS) out[k] = Math.round(s[k]);
   for (const c in BUY_COOLDOWN) out.buyCooldown[c] = (s.lastBuy[c] || 0) + BUY_COOLDOWN[c];
@@ -468,11 +473,11 @@ const SECURITY_HEADERS = {
   'Cross-Origin-Opener-Policy': 'same-origin',
   'Content-Security-Policy': [
     "default-src 'self'",
-    "script-src 'self'",
+    "script-src 'self'" + (GA_ID ? ' https://www.googletagmanager.com' : ''),
     "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
     "font-src https://fonts.gstatic.com",
-    "img-src 'self' data:",
-    "connect-src 'self'",
+    "img-src 'self' data:" + (GA_ID ? ' https://*.google-analytics.com https://*.googletagmanager.com' : ''),
+    "connect-src 'self'" + (GA_ID ? ' https://*.google-analytics.com https://*.analytics.google.com https://*.googletagmanager.com' : ''),
     "frame-ancestors 'none'",
     "base-uri 'none'",
     "form-action 'none'"

@@ -6,6 +6,7 @@
 #   TRAEFIK_ENTRYPOINT   entrypoint HTTPS de Traefik (websecure)
 #   DATA_PATH            dossier de l'hôte où sont stockées les données du jeu (./data)
 #   TRAEFIK_CERTRESOLVER resolver de certificats Let's Encrypt (letsencrypt)
+#   GA_ID                ID de mesure Google Analytics (G-XXXXXXXXXX), vide = pas de suivi
 # Pour trouver le réseau de ton Traefik : docker inspect <conteneur-traefik> --format '{{json .NetworkSettings.Networks}}'
 # Le resolver doit exister dans la config statique de Traefik (section certificatesResolvers), sinon Traefik
 # sert son « TRAEFIK DEFAULT CERT » : docker logs <conteneur-traefik> 2>&1 | grep -i resolver
@@ -17,6 +18,8 @@ services:
     environment:
       # Derrière Traefik : faire confiance à X-Forwarded-For pour connaître la vraie IP (limites anti-spam)
       - TRUST_PROXY=1
+      # Google Analytics (facultatif) : chargé seulement après consentement du visiteur
+      - GA_ID=${GA_ID:-}
     volumes:
       # Dossier de l'hôte (./data par défaut) : facile à consulter et à sauvegarder, survit à tout
       # (redémarrage, rebuild, docker compose down -v). Doit appartenir à l'UID 1000 (utilisateur node).

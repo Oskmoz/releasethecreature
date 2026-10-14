@@ -1813,6 +1813,7 @@
   }
   function claimBonus() {
     var b = bonus; bonus = null;
+    gaEvent('catch_bonus', { kind: b.kind });
     Audio8.fx('bonus'); spawnSparks(b.x + b.w / 2, b.y + b.h / 2, 24);
     parts.push({ k: 'txt', text: '+20 PTS', col: '#ffe25e', x: b.x + b.w / 2, y: b.y - 4, vx: 0, vy: -18, gr: 0, life: 1.6 });
     call('POST', '/api/bonus', { kind: b.kind }).then(function (r) {
@@ -1885,6 +1886,7 @@
     parts.push({ k: 'ring', x: x, y: y, vx: 0, vy: 0, gr: 0, life: 0.3, col: 'hsl(' + hue + ',100%,70%)' });
     var left = st && st.me ? st.me.tapLeft : 0;
     if (taps.count % 10 === 0 && left > 0) parts.push({ k: 'txt', text: '+1', col: '#ffe25e', x: x, y: y - 6, vx: 0, vy: -26, gr: 0, life: 1 });
+    if (taps.combo === 15) gaEvent('combo_max');
     if (taps.combo === 15) { parts.push({ k: 'txt', text: 'COMBO MAX !', col: '#ffd23f', x: x, y: y - 14, vx: 0, vy: -16, gr: 0, life: 1.6 }); shake = 0.15; }
     else if (taps.combo >= 10 && taps.combo % 10 === 0) { parts.push({ k: 'txt', text: 'COMBO x' + taps.combo, col: 'hsl(' + hue + ',100%,70%)', x: x, y: y - 14, vx: 0, vy: -16, gr: 0, life: 1.3 }); shake = 0.08; }
     // Toucher la créature elle-même : elle réagit
@@ -2583,6 +2585,7 @@
     call('POST', '/api/buy', { item: id }).then(function (r) {
       if (r.code === 200) {
         Audio8.fx('buy'); flash(); spawnSparks(cre.x, groundY - 20 * C, 30);
+        gaEvent('shop_buy', { item: id });
         if (r.body.events && r.body.events[0]) setDialog('INFO', r.body.events[0].text, 6000, true);
       } else {
         Audio8.fx('deny');
@@ -2591,6 +2594,42 @@
       apply(r.body, true); renderShop(true);
     }).catch(function () { setDialog('SYSTÈME', 'Erreur réseau.', 3000, true); });
   }
+
+  /* =====================================================================
+     MESURE D'AUDIENCE — Google Analytics, seulement si le serveur a un GA_ID
+     ET que le visiteur a accepté (choix mémorisé, modifiable via le bouton COOKIES)
+     ===================================================================== */
+  var gaId = null, gaLoaded = false;
+  function gaChoice() { try { return localStorage.getItem('gaConsent'); } catch (e) { return null; } }
+  function gaSetup(id) {
+    if (!id || gaId) return;
+    gaId = id;
+    $('cookiesBtn').hidden = false;
+    var c = gaChoice();
+    if (c === 'yes') gaLoad(); else if (c !== 'no') $('consent').hidden = false;
+  }
+  function gaLoad() {
+    if (gaLoaded || !gaId) return;
+    gaLoaded = true;
+    window.dataLayer = window.dataLayer || [];
+    window.gtag = function () { window.dataLayer.push(arguments); };
+    window.gtag('js', new Date());
+    window.gtag('config', gaId);
+    var sc = document.createElement('script');
+    sc.async = true; sc.src = 'https://www.googletagmanager.com/gtag/js?id=' + encodeURIComponent(gaId);
+    document.head.appendChild(sc);
+  }
+  function gaConsent(yes) {
+    try { localStorage.setItem('gaConsent', yes ? 'yes' : 'no'); } catch (e) {}
+    $('consent').hidden = true;
+    if (yes) gaLoad();
+    else if (gaLoaded) location.reload(); // retrait du consentement : on recharge la page, sans Google cette fois
+  }
+  // Événement de jeu (ignoré sans consentement)
+  function gaEvent(name, params) { if (gaLoaded && window.gtag) window.gtag('event', name, params || {}); }
+  $('consentYes').onclick = function (e) { e.stopPropagation(); gaConsent(true); };
+  $('consentNo').onclick = function (e) { e.stopPropagation(); gaConsent(false); };
+  $('cookiesBtn').onclick = function (e) { e.currentTarget.blur(); $('consent').hidden = false; };
 
   /* =====================================================================
      RÉSEAU
@@ -2622,7 +2661,8 @@
     if (!data || data.food === undefined) return;
     var prev = st;
     st = data; offset = data.now - Date.now(); if (data.cooldownMs) COOLDOWN = data.cooldownMs;
-    if (data.me && data.me.achNew && data.me.achNew.length) queueAch(data.me.achNew);
+    if (data.ga) gaSetup(data.ga);
+    if (data.me && data.me.achNew && data.me.achNew.length) { queueAch(data.me.achNew); data.me.achNew.forEach(function (a) { gaEvent('unlock_achievement', { achievement_id: a.id }); }); }
     var placeOf = function (d) { return d && d.place && !d.dead ? d.place.key : null; };
     if (prev && prev.events && !mine) {
       var before = {}, gained = 0, forMe = false;
@@ -2697,6 +2737,7 @@
         else if (r.code === 429 && r.body.error === 'cooldown') { lastAct = Date.now() - (COOLDOWN - (r.body.retryMs || 0)); deny(r.body.retryMs || 0); }
         try { localStorage.setItem('lastAct', String(lastAct)); } catch (e) {}
       }
+      if (r.code === 200) gaEvent(kind === 'hatch' ? 'hatch' : 'care_action', kind === 'hatch' ? { species: r.body.species } : { action: kind });
       if (r.code === 200 && kind === 'hatch') {
         Audio8.fx('hatch'); flash(); spawnSparks(cre.x, groundY - 15 * C, 40); jump(170);
         showReady();

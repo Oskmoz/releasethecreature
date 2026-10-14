@@ -214,6 +214,11 @@
   .tag { font-size:clamp(8px, 1.4vw, 12px); line-height:2; color:#d8d4ff; margin:0; text-shadow:2px 2px 0 #000; }
   .press { font-size:clamp(12px, 2vw, 18px); color:#ffe25e; margin:0; animation:blink 1s steps(1) infinite; text-shadow:3px 3px 0 #000; }
   .help { font-size:clamp(7px, 1.1vw, 10px); color:#5ef2ff; margin:0; line-height:2; text-shadow:2px 2px 0 #000; }
+  #consent { position:fixed; left:50%; bottom:max(16px, env(safe-area-inset-bottom)); transform:translateX(-50%); width:min(560px, calc(100vw - 32px)); box-sizing:border-box; display:flex; flex-direction:column; gap:14px; padding:16px; background:var(--panel); box-shadow:0 0 0 3px #000, 0 0 0 6px #5ef2ff, 0 0 0 9px #000; z-index:6; }
+  #consent[hidden] { display:none; }
+  #consent p { margin:0; font-size:8px; line-height:1.9; color:#d8d4ff; }
+  #consent div { display:flex; justify-content:flex-end; gap:12px; }
+  #consent .on { background:#2a9a3a; }
   #crt { position:fixed; inset:0; pointer-events:none; background:repeating-linear-gradient(0deg, rgba(0,0,0,.16) 0 1px, transparent 1px 3px), radial-gradient(ellipse at center, transparent 60%, rgba(0,0,0,.45)); }
 
   @keyframes blink { 50% { opacity:0; } }
@@ -271,7 +276,7 @@
     <div class="ebar fit" id="barFit"><div class="segs"></div><b>FORME</b></div>
     <div class="ebar sleep" id="barSleep"><div class="segs"></div><b>DODO</b></div>
   </div>
-  <div id="sys"><button class="px" id="devBtn" hidden title="Outils de dev (²)">DEV</button><button class="px" id="logBtn" title="Journal">JOURNAL</button><button class="px" id="shopBtn" title="Boutique (S)">BOUTIQUE</button><button class="px" id="achBtn" title="Hauts faits (H)">HAUTS FAITS</button><button class="px" id="hallBtn" title="Panthéon des créatures (T)">TOP 10</button><button class="px" id="mute" title="Son (M)">SON ON</button><button class="px" id="fs" title="Plein écran (F)">[ ]</button></div>
+  <div id="sys"><button class="px" id="devBtn" hidden title="Outils de dev (²)">DEV</button><button class="px" id="logBtn" title="Journal">JOURNAL</button><button class="px" id="shopBtn" title="Boutique (S)">BOUTIQUE</button><button class="px" id="achBtn" title="Hauts faits (H)">HAUTS FAITS</button><button class="px" id="hallBtn" title="Panthéon des créatures (T)">TOP 10</button><button class="px" id="mute" title="Son (M)">SON ON</button><button class="px" id="fs" title="Plein écran (F)">[ ]</button><button class="px" id="cookiesBtn" hidden title="Choix des cookies">COOKIES</button></div>
   <div id="mid"><div id="name">…</div><div id="age"></div><div id="xp" hidden title="Progression vers le niveau suivant"><div id="xpBar"></div><span id="xpText"></span></div><div id="xpHint"></div><div id="place"></div></div>
   <div id="right">
     <div class="score"><span>SCORE</span><b id="score">000000</b></div>
@@ -392,6 +397,10 @@
 <div id="achToast" aria-live="polite"><i class="trophy"></i><div><small>HAUT FAIT DÉBLOQUÉ !</small><b id="achToastName"></b><i id="achToastDesc"></i></div></div>
 <div id="ready">READY</div>
 <div id="flash"></div>
+<div id="consent" hidden role="dialog" aria-label="Cookies">
+  <p>On aimerait mesurer l’audience du jeu avec Google Analytics (cookies de mesure, aucune pub). Tu acceptes ?</p>
+  <div><button class="px" id="consentNo">REFUSER</button><button class="px on" id="consentYes">ACCEPTER</button></div>
+</div>
 <div id="title" role="button" tabindex="0" aria-label="Commencer">
   <div class="logo" id="logo"></div>
   <p class="tag">ELLE APPARTIENT À TOUT LE MONDE.<br>SI PERSONNE NE S’EN OCCUPE, ELLE MEURT.</p>
