@@ -117,8 +117,8 @@ const SHOP_BY_ID = Object.fromEntries(SHOP.map((i) => [i.id, i]));
 const BUY_COOLDOWN = { place: 20 * MIN, color: 10 * MIN, acc: 2 * MIN };
 
 // Espèces : tirées au hasard à chaque éclosion. weight = chances relatives (Horus est la créature épique, plus rare)
-const SPECIES = { dino: 'un dino', phenix: 'un phénix', renard: 'un renard mystique', lezard: 'un lézard géant', meduse: 'une gorgone', horus: 'ÉPIQUE : un dieu-faucon' };
-const SPECIES_WEIGHT = { dino: 4, phenix: 4, renard: 4, lezard: 4, meduse: 4, horus: 1 };
+const SPECIES = { dino: 'un dino', phenix: 'un phénix', renard: 'un renard mystique', lezard: 'un lézard géant', meduse: 'une gorgone', horus: 'ÉPIQUE : un dieu-faucon', lapin: 'un lapin de combat' };
+const SPECIES_WEIGHT = { dino: 4, phenix: 4, renard: 4, lezard: 4, meduse: 4, lapin: 4, horus: 1 };
 const EPIC = { horus: true };
 function pickSpecies() {
   const keys = Object.keys(SPECIES), total = keys.reduce((n, k) => n + SPECIES_WEIGHT[k], 0);
