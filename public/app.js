@@ -3445,10 +3445,16 @@
       renderHud();
     }).catch(function () {});
   }
+  // Quitter l'admin : le serveur rend le compte normal (classements, hauts faits) et retire les points offerts
   function adminLogout() {
-    adminToken = null; adminOn = false; $('devpanel').hidden = true;
-    try { localStorage.removeItem('adminToken'); } catch (e) {}
-    setDialog('SYSTÈME', 'Mode admin désactivé sur ce navigateur.', 4000, true); renderHud();
+    if (!window.confirm('Redevenir un joueur normal ? Les points que tu t’es donnés en admin seront retirés.')) return;
+    call('POST', '/api/dev', { op: 'leave' }).then(function (r) {
+      adminToken = null; adminOn = false; $('devpanel').hidden = true;
+      try { localStorage.removeItem('adminToken'); } catch (e) {}
+      setDialog('SYSTÈME', r.code === 200 ? 'Tu es de nouveau un joueur normal.' : 'Mode admin retiré de ce navigateur.', 4000, true);
+      if (r.code === 200) apply(r.body, true);
+      renderHud();
+    }).catch(function () { setDialog('SYSTÈME', 'Erreur réseau.', 3000, true); });
   }
   if (/[?&]admin\b/.test(location.search)) {
     try { history.replaceState(null, '', location.pathname); } catch (e) {}

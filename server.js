@@ -805,6 +805,7 @@ function buy(req, res, body) {
     text = actor(v) + ' a retiré ' + ACCESSORIES[cur].short + ' de ' + state.name + '.';
   }
   v.pts -= item.price; v.acted = true;
+  if (v.adminGift) v.adminGift = Math.max(0, v.adminGift - item.price); // on dépense d'abord les points offerts par l'admin
   state.lastBuy[cat] = now;
   if (!v.admin) { // les achats de l'admin (payés avec des points qu'il s'est donnés) ne comptent ni pour les hauts faits ni pour les classements
     track(v, 'buys', 1, now);
@@ -826,14 +827,28 @@ function buy(req, res, body) {
 // --- Outils de dev (inaccessibles hors mode dev : la route répond 404) ---
 function devTool(req, res, body, admin) {
   const now = Date.now(), vid = visitorId(req), v = visitor(vid, now, req);
-  if (admin && v) v.admin = true; // compte admin : exclu des classements, ses achats ne débloquent rien
+  if (admin && v && body && body.op !== 'leave') v.admin = true; // compte admin : exclu des classements, ses achats ne débloquent rien
   if (!body || typeof body.op !== 'string') return send(res, 400, { error: 'bad_request' });
   settle(now);
   const num = (x, def) => (typeof x === 'number' && isFinite(x) ? x : def);
   switch (body.op) {
     case 'whoami': return send(res, 200, { admin: true });
-    case 'points': if (v) v.pts = Math.max(0, Math.round(num(body.pts, 1000))); break;
-    case 'addPts': if (v) v.pts = Math.max(0, v.pts + Math.round(num(body.pts, 0))); break;
+    case 'points': case 'addPts': {
+      if (!v) break;
+      const before = v.pts;
+      v.pts = Math.max(0, body.op === 'points' ? Math.round(num(body.pts, 1000)) : v.pts + Math.round(num(body.pts, 0)));
+      // Points offerts par l'admin à lui-même : on les retient pour les lui retirer s'il redevient joueur normal
+      if (admin) v.adminGift = Math.max(0, (v.adminGift || 0) + v.pts - before);
+      break;
+    }
+    case 'leave': // l'admin redevient un joueur normal : classements et hauts faits à nouveau, sans les points offerts
+      if (!v) break;
+      v.pts = Math.max(0, v.pts - (v.adminGift || 0));
+      delete v.adminGift; delete v.admin;
+      leadersCache = null;
+      console.log('admin : ' + v.nick + ' redevient joueur normal');
+      save();
+      return send(res, 200, view(now, vid));
     case 'stats':
       if (state.deadAt) break;
       state.tampered = true; // jauges remplies à la main : sa durée de vie n'est plus honnête
