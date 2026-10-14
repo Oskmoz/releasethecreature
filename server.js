@@ -352,6 +352,8 @@ function die() {
 }
 // Fin d'une vie (mort ou métamorphose) : record et Panthéon
 function archive(end, morphed) {
+  // Vie trafiquée par les outils (âge ou jauges modifiés) : ni record ni Panthéon
+  if (state.tampered) { console.log('Panthéon : ' + state.name + ' ignoré (vie modifiée par les outils)'); return; }
   const lived = end - state.born;
   if (!state.best || lived > state.best.ms) state.best = { name: state.name, ms: lived };
   const rec = { name: state.name, species: state.species, lived, level: levelOf(lived), actions: state.actions, hatchedBy: state.hatchedBy || null, deadAt: end, ...(morphed ? { morphed: true } : {}) };
@@ -385,7 +387,7 @@ function view(now, vid) {
   const s = state, v = vid && own(visitors, vid);
   const out = {
     name: s.name, species: s.species, born: s.born, hall: s.hall, hatchedBy: s.hatchedBy || null, dead: !!s.deadAt, deadAt: s.deadAt, canHatchAt: s.hatchableAt,
-    actions: s.actions, best: s.best, now, cooldownMs: COOLDOWN_MS,
+    actions: s.actions, best: s.best, tampered: !!s.tampered, now, cooldownMs: COOLDOWN_MS,
     events: s.events.map((e) => ({
       id: e.id, ts: e.ts, text: e.text, likes: e.likers.length,
       likable: !!e.author, mine: !!vid && e.author === vid, liked: !!vid && e.likers.includes(vid)
@@ -737,6 +739,7 @@ function leaders(req, res) {
     const tops = {};
     for (const b of BOARDS) {
       tops[b] = Object.keys(visitors)
+        .filter((id) => !visitors[id].admin) // l'admin n'apparaît jamais dans les classements
         .map((id) => ({ id, val: (visitors[id].st && visitors[id].st[b]) || 0 }))
         .filter((r) => r.val > 0)
         .sort((x, y) => y.val - x.val)
@@ -748,9 +751,9 @@ function leaders(req, res) {
   for (const b of BOARDS) {
     boards[b] = leadersCache.tops[b].map((r) => ({ nick: visitors[r.id] ? visitors[r.id].nick : '?', val: r.val, me: r.id === vid }));
     const mine = (v && v.st && v.st[b]) || 0;
-    if (v && mine > 0) {
+    if (v && !v.admin && mine > 0) {
       let rank = 1;
-      for (const id in visitors) if (((visitors[id].st && visitors[id].st[b]) || 0) > mine) rank++;
+      for (const id in visitors) if (!visitors[id].admin && ((visitors[id].st && visitors[id].st[b]) || 0) > mine) rank++;
       me[b] = { val: mine, rank, nick: v.nick };
     }
   }
@@ -793,7 +796,7 @@ function buy(req, res, body) {
   } else if (type === 'morph') {
     const lvl = levelOf(now - state.born);
     archive(now, true);
-    state.species = pickSpecies(state.species); state.born = now; state.actions = 0;
+    state.species = pickSpecies(state.species); state.born = now; state.actions = 0; state.tampered = false; // nouvelle vie : elle compte de nouveau
     text = actor(v) + ' a transformé ' + state.name + ' (niv. ' + lvl + ') en œuf mystère ! Qu’est-ce qui va en sortir ?';
   } else {
     const cur = state.acc[key];
@@ -803,23 +806,27 @@ function buy(req, res, body) {
   }
   v.pts -= item.price; v.acted = true;
   state.lastBuy[cat] = now;
-  track(v, 'buys', 1, now);
-  track(v, 'spent', item.price, now);
-  if (type === 'place' && key !== 'maison') {
-    track(v, 'trips', 1, now);
-    v.visited = v.visited || {};
-    if (!v.visited[key]) { v.visited[key] = 1; track(v, 'places', 1, now); }
-  } else if (type === 'color') track(v, 'colors', 1, now);
-  else if (type === 'acc') track(v, 'accs', 1, now);
-  else if (type === 'morph') { track(v, 'morphs', 1, now); if (EPIC[state.species]) track(v, 'hatchEpic', 1, now); meet(v, now); }
+  if (!v.admin) { // les achats de l'admin (payés avec des points qu'il s'est donnés) ne comptent ni pour les hauts faits ni pour les classements
+    track(v, 'buys', 1, now);
+    track(v, 'spent', item.price, now);
+    if (type === 'place' && key !== 'maison') {
+      track(v, 'trips', 1, now);
+      v.visited = v.visited || {};
+      if (!v.visited[key]) { v.visited[key] = 1; track(v, 'places', 1, now); }
+    } else if (type === 'color') track(v, 'colors', 1, now);
+    else if (type === 'acc') track(v, 'accs', 1, now);
+    else if (type === 'morph') { track(v, 'morphs', 1, now); if (EPIC[state.species]) track(v, 'hatchEpic', 1, now); }
+  }
+  if (type === 'morph') meet(v, now);
   addEvent(text, now, vid);
   save();
   send(res, 200, view(now, vid));
 }
 
 // --- Outils de dev (inaccessibles hors mode dev : la route répond 404) ---
-function devTool(req, res, body) {
+function devTool(req, res, body, admin) {
   const now = Date.now(), vid = visitorId(req), v = visitor(vid, now, req);
+  if (admin && v) v.admin = true; // compte admin : exclu des classements, ses achats ne débloquent rien
   if (!body || typeof body.op !== 'string') return send(res, 400, { error: 'bad_request' });
   settle(now);
   const num = (x, def) => (typeof x === 'number' && isFinite(x) ? x : def);
@@ -829,10 +836,11 @@ function devTool(req, res, body) {
     case 'addPts': if (v) v.pts = Math.max(0, v.pts + Math.round(num(body.pts, 0))); break;
     case 'stats':
       if (state.deadAt) break;
+      state.tampered = true; // jauges remplies à la main : sa durée de vie n'est plus honnête
       for (const k of STATS) if (typeof body[k] === 'number') state[k] = clamp(body[k]);
       state.zeroAt = state.food > 0 ? null : now;
       break;
-    case 'age': state.born = now - num(body.hours, 0) * H; break;
+    case 'age': if (!state.deadAt) { state.born = now - num(body.hours, 0) * H; state.tampered = true; } break;
     case 'place':
       if (state.deadAt) break;
       state.place = own(PLACES, body.key) && body.key !== 'maison' ? { key: body.key, until: now + num(body.minutes, 180) * MIN } : null;
@@ -946,7 +954,7 @@ function route(req, res) {
       if (name === 'game/start') return readJson(req, res, (body) => gameStart(req, res, body));
       if (name === 'game/end') return readJson(req, res, (body) => gameEnd(req, res, body));
       // Outils : ouverts en mode dev, sinon réservés à l'admin (404 pour les autres, comme si la route n'existait pas)
-      if (name === 'dev' && (DEV || isAdmin(req))) return readJson(req, res, (body) => devTool(req, res, body));
+      if (name === 'dev') { const adm = isAdmin(req); if (DEV || adm) return readJson(req, res, (body) => devTool(req, res, body, adm)); }
     }
     return send(res, 404, { error: 'not_found' });
   }

@@ -3136,7 +3136,7 @@
     $('hallEmpty').textContent = 'AUCUNE CRÉATURE N’EST ENCORE ENTRÉE AU PANTHÉON… LA TIENNE SERA PEUT-ÊTRE LA PREMIÈRE.';
     var rows = (st.hall || []).map(function (h) { return { h: h, alive: false }; });
     // La créature actuelle, à la place qu'elle occuperait si elle mourait maintenant
-    if (!st.dead) {
+    if (!st.dead && !st.tampered) { // une vie modifiée par les outils n'entre pas au Panthéon
       var lived = Date.now() + offset - st.born;
       var cur = { name: st.name, species: st.species, lived: lived, level: stageOf(st) + 1, actions: st.actions, hatchedBy: st.hatchedBy };
       var pos = rows.filter(function (r) { return r.h.lived >= lived; }).length;
