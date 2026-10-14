@@ -1831,7 +1831,7 @@
 
   // ---------- Petites animations au hasard (quand la créature n'a rien d'autre à faire) ----------
   // Chaque espèce peut tout faire ; le rire et les gestes « de costaud » dépendent du niveau.
-  var EMOTE_DUR = { sprint: 8, jump: 0.9, laugh: 1.4, sneeze: 1.3, dance: 3.2, read: 5.5, squat: 3.4, flex: 1.8, roar: 1.6 };
+  var EMOTE_DUR = { sprint: 8, jump: 0.9, laugh: 1.4, sneeze: 1.3, dance: 5, read: 5.5, squat: 3.4, flex: 1.8, roar: 1.6 };
   var BOOK = ['.WWWKWWW.', 'WLLLKLLLW', 'WWLLKLLWW', 'WLLLKLLLW', 'WWWWKWWWW', '.BBBBBBB.'];
   var NOTE = ['..KK', '..K.', '..K.', 'KKK.', 'KK..'];
   function pickEmote() {
@@ -1881,6 +1881,37 @@
       if (rep !== e.beat && rep < 4) { e.beat = rep; if (rep > 0) { Audio8.fx('grunt'); floatText('SQUAT ' + rep + ' !', '#ffffff'); } }
     } else if (e.k === 'read' && Math.floor(et / 1.6) !== e.beat) { e.beat = Math.floor(et / 1.6); Audio8.fx('page'); }
     if (et >= e.dur) cre.emote = null;
+  }
+
+  // Boule disco pendant la danse : elle descend du plafond, tourne, et projette des taches de couleur
+  var DISCO_COLS = ['#ff4fa0', '#5ef2ff', '#ffe25e', '#7dff7a', '#b06bff'];
+  function drawDisco(e, front) {
+    var et = T - e.t0, dur = e.dur, drop = Math.min(1, et / 0.5, (dur - et) / 0.5);
+    if (drop <= 0) return;
+    if (e.cx === undefined) e.cx = Math.round(cre.x);
+    var r = 5 + 3 * C, cx = e.cx, cy = Math.round(-r - 4 + (Math.max(hudBottom + 12, mouth.top - 30) + r + 4) * drop), i, x, y;
+    if (!front) {
+      g.fillStyle = 'rgba(20,0,40,' + (0.32 * drop).toFixed(2) + ')'; g.fillRect(0, 0, W, H); // la lumière baisse
+      for (i = 0; i < 8; i++) {
+        var a = T * 1.6 + i * Math.PI / 4, sx = Math.round(cx + Math.cos(a) * W * 0.45), sy = Math.round(groundY - 6 - ((Math.sin(a * 1.3) + 1) / 2) * (groundY - cy) * 0.8);
+        var col = DISCO_COLS[i % DISCO_COLS.length];
+        g.globalAlpha = 0.3 * drop; g.strokeStyle = col; g.lineWidth = 1;
+        g.beginPath(); g.moveTo(cx + 0.5, cy + 0.5); g.lineTo(sx + 0.5, sy + 0.5); g.stroke();
+        g.globalAlpha = 0.7 * drop; g.fillStyle = col; g.fillRect(sx - 1, sy - 1, 3, 2); g.fillRect(sx, sy - 2, 1, 4);
+      }
+      g.globalAlpha = 1;
+      return;
+    }
+    g.fillStyle = '#c8c8d8'; g.fillRect(cx, 0, 1, cy - r); // fil
+    var spin = Math.floor(T * 10);
+    for (y = -r; y <= r; y++) for (x = -r; x <= r; x++) {
+      if (x * x + y * y > r * r) continue;
+      var fx = Math.floor((x + r) / C / 1.5), fy = Math.floor((y + r) / C / 1.5), edge = x * x + y * y > (r - 1.5) * (r - 1.5);
+      var v = (fx + fy * 3 + spin) % 7;
+      g.fillStyle = edge ? '#5a5a7a' : v === 0 ? '#ffffff' : v === 1 ? DISCO_COLS[(fx + spin) % DISCO_COLS.length] : (x + y) % 2 ? '#a8a8c8' : '#d8d8ec';
+      g.fillRect(cx + x, cy + y, 1, 1);
+    }
+    if (spin % 3 === 0) { g.fillStyle = '#ffffff'; g.fillRect(cx - 4, cy - 6, 1, 5); g.fillRect(cx - 6, cy - 4, 5, 1); } // éclat
   }
 
   // ---------- Particules ----------
@@ -2285,7 +2316,10 @@
       g.globalCompositeOperation = 'source-over'; g.fillStyle = 'rgba(8,6,16,.45)'; g.fillRect(0, 0, W, H);
     }
 
+    var disco = cre.emote && cre.emote.k === 'dance' && st && !st.dead ? cre.emote : null;
+    if (disco) drawDisco(disco, false); // ambiance, faisceaux et taches de lumière derrière la créature
     mouth = drawCreature();
+    if (disco) drawDisco(disco, true);  // la boule elle-même, devant
     if (cre.travel) drawTravel();
     drawBonus();
 
