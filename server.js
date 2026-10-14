@@ -112,85 +112,73 @@ const SHOP = [
   { id: 'unacc:face', cat: 'accessoires', slot: 'face', remove: true, name: 'Retirer les lunettes', price: 50, desc: 'Lui enlever ses lunettes.' },
   { id: 'unacc:neck', cat: 'accessoires', slot: 'neck', remove: true, name: 'Retirer le cou', price: 50, desc: 'Lui enlever ce qu’il porte au cou.' }
 ];
+// Métamorphose : un œuf mystère remplace la créature, l'espèce est tirée au hasard (jamais la même).
+// Elle repart au niveau 1 et sa vie actuelle entre au Panthéon.
+const MORPH_PRICE = 2000;
+SHOP.push({ id: 'morph:egg', cat: 'metamorphose', name: 'Œuf mystère', price: MORPH_PRICE, desc: 'Transforme la créature en œuf : il en sortira une espèce au hasard, différente de l’actuelle (peut-être l’épique ?). Retour au niveau 1.' });
 const SHOP_BY_ID = Object.fromEntries(SHOP.map((i) => [i.id, i]));
 // Délai minimum entre deux changements, par catégorie (la créature est commune à tous)
-const BUY_COOLDOWN = { place: 20 * MIN, color: 10 * MIN, acc: 2 * MIN };
+const BUY_COOLDOWN = { place: 20 * MIN, color: 10 * MIN, acc: 2 * MIN, morph: 6 * H };
 
 // Espèces : tirées au hasard à chaque éclosion. weight = chances relatives (Horus est la créature épique, plus rare)
-const SPECIES = { dino: 'un dino', phenix: 'un phénix', renard: 'un renard mystique', lezard: 'un lézard géant', meduse: 'une gorgone', horus: 'ÉPIQUE : un dieu-faucon', lapin: 'un lapin de combat' };
-const SPECIES_WEIGHT = { dino: 4, phenix: 4, renard: 4, lezard: 4, meduse: 4, lapin: 4, horus: 1 };
+const SPECIES = { dino: 'un dino', phenix: 'un phénix', renard: 'un renard mystique', lezard: 'un lézard géant', meduse: 'une gorgone', horus: 'ÉPIQUE : un dieu-faucon', lapin: 'un lapin de combat', requin: 'un requin des terres' };
+const SPECIES_WEIGHT = { dino: 4, phenix: 4, renard: 4, lezard: 4, meduse: 4, lapin: 4, requin: 4, horus: 1 };
 const EPIC = { horus: true };
-function pickSpecies() {
-  const keys = Object.keys(SPECIES), total = keys.reduce((n, k) => n + SPECIES_WEIGHT[k], 0);
+function pickSpecies(not) {
+  const keys = Object.keys(SPECIES).filter((k) => k !== not), total = keys.reduce((n, k) => n + SPECIES_WEIGHT[k], 0);
   let r = Math.random() * total;
   for (const k of keys) { r -= SPECIES_WEIGHT[k]; if (r < 0) return k; }
   return keys[0];
 }
-const NAMES = ['Rex', 'Kaiju', 'Draco', 'Ignis', 'Titan', 'Onyx', 'Orion', 'Nova', 'Atlas', 'Vulcain', 'Raptor', 'Zéphyr', 'Kairo', 'Sirius', 'Ragnar', 'Ember'];
+// Noms tirés au hasard à chaque éclosion
+const NAMES = [
+  // classiques
+  'Rex', 'Kaiju', 'Draco', 'Ignis', 'Titan', 'Onyx', 'Orion', 'Nova', 'Atlas', 'Vulcain', 'Raptor', 'Zéphyr', 'Kairo', 'Sirius', 'Ragnar', 'Ember',
+  // planètes, lunes et étoiles
+  'Mercure', 'Vénus', 'Mars', 'Jupiter', 'Saturne', 'Uranus', 'Neptune', 'Pluton', 'Cérès', 'Éris', 'Titania', 'Europe', 'Io', 'Ganymède', 'Callisto',
+  'Encelade', 'Triton', 'Phobos', 'Déimos', 'Obéron', 'Rhéa', 'Téthys', 'Hypérion', 'Véga', 'Altaïr', 'Rigel', 'Bételgeuse', 'Antarès', 'Aldébaran',
+  'Polaris', 'Capella', 'Andromède', 'Cassiopée', 'Pégase', 'Lyra', 'Draconis', 'Quasar', 'Pulsar', 'Nébula', 'Cosmo', 'Galaxie', 'Comète', 'Astéro',
+  // créatures de légende
+  'Godzilla', 'Kong', 'Nessie', 'Yéti', 'Bigfoot', 'Kraken', 'Hydre', 'Griffon', 'Chimère', 'Basilic', 'Wyvern', 'Golem', 'Gargouille', 'Minotaure',
+  'Cerbère', 'Léviathan', 'Béhémoth', 'Sphinx', 'Pégasus', 'Fenrir', 'Jormungand', 'Tarasque', 'Mothra', 'Rodan', 'Chupacabra', 'Wendigo', 'Kitsune',
+  'Tengu', 'Naga', 'Quetzal', 'Banshee', 'Djinn', 'Troll', 'Ogre', 'Gobelin', 'Lutin', 'Farfadet',
+  // héros et dieux
+  'Zeus', 'Thor', 'Odin', 'Loki', 'Hercule', 'Achille', 'Apollon', 'Artémis', 'Athéna', 'Hermès', 'Anubis', 'Râ', 'Osiris', 'Bastet', 'Freya',
+  'Merlin', 'Arthur', 'Lancelot', 'Excalibur', 'Gilgamesh', 'Ulysse', 'Persée', 'Thésée', 'Icare', 'Prométhée',
+  // gentiment ridicules
+  'Cornichon', 'Bidule', 'Machin', 'Patapouf', 'Choupette', 'Grumeau', 'Brioche', 'Pistache', 'Nugget', 'Croquette', 'Cacahuète', 'Moustache',
+  'Gribouille', 'Pompon', 'Biscotte', 'Raclette', 'Tartiflette', 'Saucisse', 'Bretzel', 'Waffle', 'Mochi', 'Tofu', 'Wasabi', 'Sushi', 'Ramen',
+  'Pixel', 'Bitoniau', 'Zigouigoui', 'Chouquette', 'Barnabé', 'Gaston', 'Marcel', 'Gérard', 'Josiane', 'Ginette', 'Roger', 'Jean-Claude',
+  // sonores
+  'Bzzt', 'Kaboum', 'Zorglub', 'Grominet', 'Zigzag', 'Tornado', 'Tsunami', 'Blizzard', 'Typhon', 'Volcan', 'Séisme', 'Éclair', 'Tonnerre',
+  'Obsidienne', 'Quartz', 'Jade', 'Rubis', 'Saphir', 'Topaze', 'Cobalt', 'Titane', 'Néon', 'Argon', 'Krypton', 'Xénon', 'Radon'
+];
+// Messages du journal (une centaine par action) : voir messages.js
+const MESSAGES = require('./messages');
 const ACTIONS = {
   feed: {
     stat: 'food', gain: 25, side: {},
-    msgs: [
-      'a donné une chaussette à {n}. Il a adoré.',
-      'a nourri {n} avec un croissant ramassé par terre.',
-      'a lancé une pizza froide à {n}.',
-      'a servi des spaghettis à {n}. Il les a fait rouler partout.',
-      'a offert un cornichon à {n}. Il est ému.',
-      'a glissé un post-it dans la bouche de {n}. Miam.'
-    ],
-    full: ['{n} n’a plus faim et vous regarde avec dégoût.', '{n} refuse de manger. Il est plein.']
+    ...MESSAGES.feed
   },
   pet: {
     stat: 'joy', gain: 20, side: {},
-    msgs: [
-      'a fait un câlin à {n}.',
-      'a gratouillé le ventre de {n}. Il vibre.',
-      'a raconté une blague nulle à {n}. Il a ri quand même.',
-      'a chanté du Céline Dion à {n}.',
-      'a fait coucou à {n}. {n} a fait coucou.',
-      'a mis un petit chapeau à {n}. Il est magnifique.'
-    ],
-    full: ['{n} en a marre des câlins. Il veut de l’espace.']
+    ...MESSAGES.pet
   },
   wash: {
     stat: 'clean', gain: 35, side: { joy: -2 },
-    msgs: [
-      'a donné un bain moussant à {n}.',
-      'a frotté le dos de {n} avec une brosse à dents.',
-      'a passé {n} au jet d’eau. Il boude, mais il sent bon.',
-      'a mis du shampoing à la fraise sur {n}.'
-    ],
-    full: ['{n} est déjà tout propre. Il s’ébroue, vexé.']
+    ...MESSAGES.wash
   },
   play: {
     stat: 'fit', gain: 30, side: { joy: 5, food: -4, sleep: -6 },
-    msgs: [
-      'a lancé une balle à {n}. Il l’a ramenée… enfin presque.',
-      'a joué à chat avec {n}. {n} a triché.',
-      'a fait une partie de foot avec {n}. 3 à 0 pour {n}.',
-      'a fait danser {n} sur de la techno.'
-    ],
-    full: ['{n} est épuisé de jouer. Laissez-le souffler !']
+    ...MESSAGES.play
   },
   rock: {
     stat: 'sleep', gain: 35, side: {}, nap: true,
-    msgs: [
-      'a bercé {n} en chantant une berceuse.',
-      'a raconté une histoire à {n}. Il s’est endormi au milieu.',
-      'a bordé {n} avec une couverture à pois.'
-    ],
-    full: ['{n} n’a pas sommeil et fait des grimaces.']
+    ...MESSAGES.rock
   },
   heal: {
     stat: null, gain: 25, side: {}, // stat null : la jauge la plus basse au moment du soin
-    msgs: [
-      'a soigné {n} avec un pansement à paillettes.',
-      'a fait une piqûre de vitamines à {n}. Il a hurlé, puis remercié.',
-      'a massé les pattes de {n}. Il ronronne comme un moteur.',
-      'a posé une compresse fraîche sur le front de {n}.',
-      'a fait boire une potion fluo à {n}. Il brille un peu.'
-    ],
-    full: ['{n} est en pleine santé. Le docteur repart bredouille.']
+    ...MESSAGES.heal
   }
 };
 // Jauge la plus basse (cible du soin)
@@ -231,6 +219,21 @@ const ACHIEVEMENTS = [
   ...series('accs', [[1, 'Fashion week', 'Offrir un accessoire à la bête', 10]]),
   ...series('hatches', [[1, 'Sage-femme', 'Faire éclore un œuf', 15]], true),
   ...series('hatchEpic', [[1, 'Œil d’Horus', 'Faire éclore une créature épique', 50, true]], true),
+  // Découvertes : être présent (ou agir) pendant la vie d'une créature de chaque espèce
+  ...series('met_dino', [[1, 'Jurassique', 'Découvrir le dino', 10]]),
+  ...series('met_phenix', [[1, 'Oiseau de feu', 'Découvrir le phénix', 10]]),
+  ...series('met_renard', [[1, 'Esprit de la forêt', 'Découvrir le renard mystique', 10]]),
+  ...series('met_lezard', [[1, 'Sang-froid', 'Découvrir le lézard géant', 10]]),
+  ...series('met_meduse', [[1, 'Regard de pierre', 'Découvrir la gorgone', 10]]),
+  ...series('met_lapin', [[1, 'Premier round', 'Découvrir le lapin de combat', 10]]),
+  ...series('met_requin', [[1, 'Dents de la mer', 'Découvrir le requin des terres', 10]]),
+  ...series('met_horus', [[1, 'Vision divine', 'Découvrir le dieu-faucon épique', 40, true]], true),
+  ...series('species', [[3, 'Naturaliste', 'Découvrir 3 espèces', 20], [Object.keys(SPECIES).length, 'Zoologiste', 'Découvrir toutes les espèces', 100, true]]),
+  ...series('games', [[1, 'Joueur', 'Jouer à un mini-jeu', 5], [10, 'Habitué de l’arcade', 'Jouer à 10 mini-jeux', 25], [50, 'Pro du joystick', 'Jouer à 50 mini-jeux', 75, true]]),
+  ...series('best_catch', [[25, 'Estomac sur pattes', 'Faire 25 à Attrape-miam', 20]]),
+  ...series('best_mole', [[25, 'Main de fer', 'Faire 25 à Tape-cornichons', 20]]),
+  ...series('best_rhythm', [[50, 'Roi de la piste', 'Faire 50 à Danse-rythme', 20]]),
+  ...series('morphs', [[1, 'Métamorphose', 'Transformer la bête en une autre espèce', 25], [5, 'Savant fou', 'Faire 5 métamorphoses', 75, true]]),
   ...series('nicks', [[1, 'Nouvelle identité', 'Changer de pseudo', 5]], true),
   ...series('presence', [[10, 'Spectateur', 'Passer 10 minutes sur le site', 5], [60, 'Fidèle au poste', 'Passer 1 heure sur le site', 20], [600, 'Résident', 'Passer 10 heures sur le site', 75, true]]),
   ...series('feedHungry', [[1, 'Sauveteur', 'Nourrir la bête quand elle meurt de faim', 10]], true),
@@ -338,13 +341,17 @@ function die() {
   state.deadAt = state.zeroAt + GRACE_MS;
   for (const k of STATS) state[k] = 0;
   state.hatchableAt = state.deadAt + HATCH_DELAY_MS;
-  const lived = state.deadAt - state.born;
-  if (!state.best || lived > state.best.ms) state.best = { name: state.name, ms: lived };
   addEvent(state.name + ' est mort de faim. Bravo à tous.', state.deadAt);
-  const rec = { name: state.name, species: state.species, lived, level: levelOf(lived), actions: state.actions, hatchedBy: state.hatchedBy || null, deadAt: state.deadAt };
+  archive(state.deadAt);
+}
+// Fin d'une vie (mort ou métamorphose) : record et Panthéon
+function archive(end, morphed) {
+  const lived = end - state.born;
+  if (!state.best || lived > state.best.ms) state.best = { name: state.name, ms: lived };
+  const rec = { name: state.name, species: state.species, lived, level: levelOf(lived), actions: state.actions, hatchedBy: state.hatchedBy || null, deadAt: end, ...(morphed ? { morphed: true } : {}) };
   state.hall = state.hall.concat(rec).sort((a, b) => b.lived - a.lived).slice(0, HALL_SIZE);
   const rank = state.hall.indexOf(rec) + 1;
-  if (rank) addEvent(state.name + ' entre au Panthéon à la ' + (rank === 1 ? '1re' : rank + 'e') + ' place !' + (rank === 1 ? ' Nouveau record !' : ''), state.deadAt);
+  if (rank) addEvent(state.name + ' entre au Panthéon à la ' + (rank === 1 ? '1re' : rank + 'e') + ' place !' + (rank === 1 ? ' Nouveau record !' : ''), end);
 }
 
 // Met l'état à jour jusqu'à "now", par segments (fin de séjour, fin de sieste)
@@ -509,6 +516,7 @@ function act(req, res, kind) {
   if (v && kind === 'feed' && state.food < 25) track(v, 'feedHungry', 1, now);
   if (v && kind === 'feed' && state.food < 8) track(v, 'feedDying', 1, now);
   if (v && kind !== 'rock' && state.asleepUntil > now) track(v, 'wakeUp', 1, now);
+  meet(v, now);
   if (state[stat] > (a.stat ? 92 : 80)) {
     state.joy = clamp(state.joy - 8);
     addEvent(fill(pick(a.full)), now);
@@ -535,6 +543,7 @@ function hatch(req, res) {
   state.hatchedBy = v ? v.nick : null;
   track(v, 'hatches', 1, now);
   if (EPIC[state.species]) track(v, 'hatchEpic', 1, now);
+  meet(v, now);
   addEvent(actor(v) + ' a fait éclore un œuf : c’est ' + SPECIES[state.species] + ' ! Bonjour, ' + state.name + ' !', now, vid);
   save();
   send(res, 200, view(now, vid));
@@ -549,6 +558,7 @@ function ping(req, res) {
     if (v.day !== day) { v.day = day; v.dayPts = 0; }
     if (v.dayPts < PRESENCE_CAP) { v.dayPts += PTS_PRESENCE; gained = PTS_PRESENCE; v.acted = true; earn(v, PTS_PRESENCE, now); }
     track(v, 'presence', 1, now);
+    meet(v, now);
     v.lastPing = now;
     save();
   }
@@ -562,6 +572,15 @@ function track(v, stat, inc, now) {
   v.st[stat] = (v.st[stat] || 0) + (inc === undefined ? 1 : inc);
   if (stat === 'earned') return checkAch(v, now);
   checkAch(v, now);
+}
+// Première rencontre de ce visiteur avec l'espèce de la créature actuelle (vivante)
+function meet(v, now) {
+  if (!v || state.deadAt) return;
+  v.met = v.met || {};
+  if (v.met[state.species]) return;
+  v.met[state.species] = 1;
+  track(v, 'met_' + state.species, 1, now);
+  track(v, 'species', 1, now);
 }
 function earn(v, pts, now) { if (!v || pts <= 0) return; v.pts += pts; track(v, 'earned', pts, now); }
 function checkAch(v, now) {
@@ -616,6 +635,50 @@ function bonus(req, res, body) {
   send(res, 200, { gained: BONUS_PTS, ...view(now, vid) });
 }
 
+// --- Mini-jeux : une occasion apparaît de temps en temps, une partie dure 20 s ---
+// Le serveur ouvre la partie (start) et refuse un score rendu trop tôt ; le score est borné par jeu.
+const GAMES = {
+  catch: { name: 'Attrape-miam', max: 45 },
+  mole: { name: 'Tape-cornichons', max: 45 },
+  rhythm: { name: 'Danse-rythme', max: 90 }
+};
+const GAME_MS = 20 * 1000;
+const GAME_COOLDOWN = 2 * MIN;  // au plus une partie toutes les 2 min
+const GAME_DAILY = 10;          // parties qui rapportent des points, par jour
+const GAME_PTS_MAX = 40;        // points max par partie
+function gameStart(req, res, body) {
+  const now = Date.now(), vid = visitorId(req), v = visitor(vid, now, req);
+  const kind = body && own(GAMES, body.kind) ? body.kind : null;
+  if (!v || !kind) return send(res, 400, { error: 'bad_request' });
+  if (now - (v.gameAt || 0) < GAME_COOLDOWN) return send(res, 429, { error: 'cooldown' });
+  v.game = { kind, at: now }; v.gameAt = now;
+  send(res, 200, { ok: true });
+}
+function gameEnd(req, res, body) {
+  const now = Date.now(), vid = visitorId(req), v = visitor(vid, now, req);
+  const g = v && v.game;
+  if (!g) return send(res, 409, { error: 'no_game', ...view(now, vid) });
+  const el = now - g.at;
+  if (el < GAME_MS - 2000 || el > GAME_MS + 60 * 1000) { v.game = null; return send(res, 409, { error: 'timing', ...view(now, vid) }); }
+  v.game = null;
+  const G = GAMES[g.kind], score = Math.max(0, Math.min(G.max, Math.round(Number(body && body.score) || 0)));
+  const day = today(now);
+  if (v.gameDay !== day) { v.gameDay = day; v.gameCount = 0; }
+  const gained = v.gameCount < GAME_DAILY ? Math.min(GAME_PTS_MAX, Math.round(score * 40 / G.max * 1.2)) : 0;
+  v.gameCount++; v.acted = true;
+  v.gameBest = v.gameBest || {};
+  const record = score > (v.gameBest[g.kind] || 0);
+  if (record) v.gameBest[g.kind] = score;
+  if (gained) earn(v, gained, now);
+  track(v, 'games', 1, now);
+  if (gained) track(v, 'gamePts', gained, now);
+  // Hauts faits de score : le compteur garde le meilleur score
+  v.st['best_' + g.kind] = Math.max(v.st['best_' + g.kind] || 0, score); checkAch(v, now);
+  addEvent(actor(v) + ' a marqué ' + score + ' à ' + G.name + (record && score > 0 ? ' : record perso !' : ' !') + (gained ? ' (+' + gained + ' pts)' : ''), now, vid);
+  save();
+  send(res, 200, { ...view(now, vid), gained, gameScore: score, gameRecord: record, gameBest: v.gameBest[g.kind] });
+}
+
 // Points au toucher : le client envoie un lot de touches toutes les quelques secondes.
 // Le serveur ne croit pas le nombre annoncé : il le borne au temps écoulé depuis le dernier lot (TAP_RATE / s).
 function tapLeft(v, now) { return v.tapDay === today(now) ? Math.max(0, TAP_DAILY - (v.tapPts || 0)) : TAP_DAILY; }
@@ -643,7 +706,7 @@ function tap(req, res, body) {
 
 // Classements des joueurs (points gagnés, dépensés, temps de présence). Les identifiants secrets
 // ne sortent jamais : on n'envoie que les pseudos, et un drapeau "me" calculé pour celui qui demande.
-const BOARDS = ['earned', 'spent', 'presence'];
+const BOARDS = ['earned', 'spent', 'presence', 'gamePts'];
 let leadersCache = null;
 function leaders(req, res) {
   const now = Date.now(), vid = visitorId(req), v = vid && own(visitors, vid);
@@ -704,6 +767,11 @@ function buy(req, res, body) {
     if (state.acc[a.slot] === key) return send(res, 409, { error: 'already', ...view(now, vid) });
     state.acc[a.slot] = key;
     text = actor(v) + ' a offert ' + a.name + ' à ' + state.name + '.';
+  } else if (type === 'morph') {
+    const lvl = levelOf(now - state.born);
+    archive(now, true);
+    state.species = pickSpecies(state.species); state.born = now; state.actions = 0;
+    text = actor(v) + ' a transformé ' + state.name + ' (niv. ' + lvl + ') en œuf mystère ! Qu’est-ce qui va en sortir ?';
   } else {
     const cur = state.acc[key];
     if (!cur) return send(res, 409, { error: 'already', ...view(now, vid) });
@@ -720,6 +788,7 @@ function buy(req, res, body) {
     if (!v.visited[key]) { v.visited[key] = 1; track(v, 'places', 1, now); }
   } else if (type === 'color') track(v, 'colors', 1, now);
   else if (type === 'acc') track(v, 'accs', 1, now);
+  else if (type === 'morph') { track(v, 'morphs', 1, now); if (EPIC[state.species]) track(v, 'hatchEpic', 1, now); meet(v, now); }
   addEvent(text, now, vid);
   save();
   send(res, 200, view(now, vid));
@@ -745,7 +814,7 @@ function devTool(req, res, body) {
       break;
     case 'species': if (own(SPECIES, body.species)) state.species = body.species; break;
     case 'nap': if (!state.deadAt) state.asleepUntil = now + NAP_MS; break;
-    case 'cooldowns': state.lastBuy = {}; lastAction.delete(clientIp(req)); if (v) { v.lastBonus = 0; v.bonusCount = 0; } break;
+    case 'cooldowns': state.lastBuy = {}; lastAction.delete(clientIp(req)); if (v) { v.lastBonus = 0; v.bonusCount = 0; v.gameAt = 0; v.gameCount = 0; } break;
     case 'kill': if (!state.deadAt) { state.zeroAt = now - GRACE_MS; die(); state.hatchableAt = now + 5000; } break;
     default: return send(res, 400, { error: 'unknown_op' });
   }
@@ -848,6 +917,8 @@ function route(req, res) {
       if (name === 'nick') return readJson(req, res, (body) => setNick(req, res, body));
       if (name === 'like') return readJson(req, res, (body) => like(req, res, body));
       if (name === 'tap') return readJson(req, res, (body) => tap(req, res, body));
+      if (name === 'game/start') return readJson(req, res, (body) => gameStart(req, res, body));
+      if (name === 'game/end') return readJson(req, res, (body) => gameEnd(req, res, body));
       if (DEV && name === 'dev') return readJson(req, res, (body) => devTool(req, res, body));
     }
     return send(res, 404, { error: 'not_found' });

@@ -368,7 +368,7 @@
      MONDE — canvas basse résolution, upscalé en pixels nets
      ===================================================================== */
   var cv = $('world'), g = cv.getContext('2d');
-  var S = 3, W = 320, H = 240, groundY = 200, C = 2, mot = 1, hudBottom = 0;
+  var S = 3, W = 320, H = 240, groundY = 200, C = 2, mot = 1, hudBottom = 0, gameTop = 0;
   var playR = 320, playCx = 160; // zone où la créature se promène : à gauche du journal sur grand écran
   // Un décor par stade d'évolution. Palettes choisies pour contraster avec l'orange du dino
   // (bleus, violets, sarcelles) tout en restant dans une même famille de teintes par scène.
@@ -466,6 +466,7 @@
     var bt = $('bottom').getBoundingClientRect().top, ht = Math.max($('hud').getBoundingClientRect().bottom, $('mid').getBoundingClientRect().bottom); // #mid est hors du flux sur grand écran
     groundY = Math.max(40, Math.min(H - 8, Math.floor(bt / S) - 18));
     hudBottom = Math.ceil(ht / S);
+    gameTop = Math.ceil(Math.max(ht, $('sys').getBoundingClientRect().bottom) / S); // les mini-jeux commencent sous le HUD et le menu
     $('logbox').style.top = Math.ceil($('hud').getBoundingClientRect().bottom + 14) + 'px'; // le journal commence toujours sous le HUD, quelle que soit sa hauteur
     // Sur grand écran, le journal est fixé à droite : la créature reste dans l'espace libre à sa gauche
     var lb = $('logbox').getBoundingClientRect(), lbLeft = Math.floor((lb.left - 12) / S);
@@ -1420,6 +1421,73 @@
         if (L >= 7) p.push({ r: [37,33,42,34], c: 'H', tag: 'fa' });
         return p;
       }
+    },
+    requin: { // requin des terres : sur ses nageoires jusqu'au niv. 4, debout et musclé dès le niv. 5. Dents (2), branchies (3), rayures (5), cicatrice (7), aileron royal (9), ceinture (10)
+      name: 'REQUIN', kMin: 0.62, kMax: 1.06, headMax: 1.12, flame: false,
+      byLevel: function (L) {
+        return L < 5
+          ? { head: [43, 33], foot: [33, 45.6], eye: [44, 30.5], mouth: [46, 51, 36.2], nose: [52, 31.5], halo: [43, 21], top: [43, 26], neck: [39, 37], tail: [3, 24], hip: 37 }
+          : { head: [30, 8], foot: [28, 45.6], eye: [31.5, 5.6], mouth: [35, 40, 12.2], nose: [41.5, 7.5], halo: [29, -9], top: [29.5, 1.5], neck: [30, 17], tail: [16, 40], hip: 34 };
+      },
+      parts: function (L) {
+        var p = [];
+        if (L < 5) { // jeune requin qui marche sur ses nageoires
+          var fk = 0.65 + 0.35 * (L - 1) / 3;
+          p.push({ p: [[13,33],[7,26],[3,22],[1,23],[5,31],[8,36]], c: 'O' }, { p: [[8,36],[3,43],[6,43.5],[13,38]], c: 'D' });
+          p.push({ r: [28,40,30,44], c: 'D', tag: 'bl' }, { p: [[26,44],[32,44],[31,45.6],[25,45.6]], c: 'D', tag: 'bl' });
+          p.push({ p: [[7,34],[18,29],[20,39],[9,37.5]], c: 'O' });
+          p.push({ e: [28,34.5,14,7.5], c: 'O' });
+          p.push({ p: scaleAbout([[23,28],[29,16],[31,16.5],[33,28]], [28, 28], fk), c: 'O' });
+          if (L >= 4) p.push({ p: [[13,31],[15,26.5],[17,30.5]], c: 'O' });
+          p.push({ e: [30,39,12,3.4], c: 'B' });
+          p.push({ e: [42,33.5,8.5,6.5], c: 'O', head: true }, { p: [[45,28],[55,31.8],[53,35.6],[45,39]], c: 'O', head: true });
+          p.push({ p: [[38,38],[53,35.4],[49,38.6],[38,40.2]], c: 'B', head: true });
+          if (L >= 2) [46.5, 49, 51.2].forEach(function (x) { p.push({ p: [[x - 0.9, 36.8],[x, 38.6],[x + 0.9, 36.6]], c: 'W', head: true }); });
+          if (L >= 3) [36.5, 38.3, 40.1].forEach(function (x) { p.push({ p: [[x,31],[x + 0.7,31],[x + 0.3,36.5],[x - 0.4,36.5]], c: 'M', head: true }); });
+          p.push({ p: [[37,39],[42,39],[42.5,44],[41.5,45.6],[36,45.6]], c: 'O', ol: true, tag: 'fl' });
+          p.push({ p: [[30,36],[35,36.5],[31,41.5],[28,40]], c: 'O', ol: true, tag: 'fa' });
+          return p;
+        }
+        var mk = L >= 9 ? 1.32 : L >= 7 ? 1.2 : 1.06; // bras de plus en plus gonflés
+        var hf = L >= 9 ? 1.15 : L >= 7 ? 1 : 0.8;       // aileron de tête de plus en plus tranchant
+        if (L >= 9) { // aileron royal dans le dos : étroit et très haut
+          var wk = L >= 10 ? 1 : 0.8, sc = [21, 26];
+          p.push({ p: scaleAbout([[19,31],[16,20],[17,6],[20,-2],[23,8],[25,22],[25,31]], sc, wk), c: 'V' });
+          p.push({ p: scaleAbout([[20,29],[18,19],[19.5,8],[21.5,12],[23,24]], sc, wk), c: 'v' });
+        }
+        // petite queue entre les jambes
+        p.push({ p: [[23,37],[16,40.5],[13,38],[13.5,45.6],[21,44],[24,41]], c: 'D', tag: 'bl' });
+        // bras arrière et épaule arrière, très gonflés
+        p.push({ e: [19.5,20.5,4 * mk,3.6 * mk], c: 'D' }, { e: [18.8,26.5,3 * mk,4.6 * mk], c: 'D' }, { e: [19,32,2.6 * mk,2.4 * mk], c: 'D' });
+        p.push({ e: [24.5,38,4.2,4.2], c: 'D', tag: 'bl' }, { p: [[20.5,43],[28.5,43],[29.5,45.6],[19.5,45.6]], c: 'D', tag: 'bl' });
+        // trapèzes massifs autour du cou
+        p.push({ p: [[21.5,20],[25,13],[33,13],[36.5,20]], c: 'O' });
+        // torse en V, ventre blanc de requin, pectoraux et abdos
+        p.push({ p: [[18.5,18.5],[38.5,18.5],[33.5,35],[23.5,35]], c: 'O' });
+        p.push({ p: [[24.5,22.5],[32.5,22.5],[31.5,35],[25.5,35]], c: 'B' });
+        p.push({ p: [[21.5,22],[28.5,25.6],[35.5,22],[35.5,23.6],[28.5,27],[21.5,23.6]], c: 'M' });
+        p.push({ r: [28,27.5,28,34], c: 'b' }, { r: [26,29,30,29], c: 'b' }, { r: [26,31.5,30,31.5], c: 'b' }, { r: [26.5,33.6,29.5,33.6], c: 'b' });
+        [[21,25],[20.5,30],[36,25],[36.5,30]].forEach(function (q) { p.push({ p: [[q[0] - 1.2,q[1]],[q[0] + 1.2,q[1] - 0.6],[q[0] + 0.8,q[1] + 1],[q[0] - 1,q[1] + 1.4]], c: 'M' }); }); // rayures de tigre
+        p.push({ e: [29,38.5,4.4,4.6], c: 'O', ol: true, tag: 'fl' }, { p: [[25.5,43],[34,43],[35.5,45.6],[24.5,45.6]], c: 'O', ol: true, tag: 'fl' });
+        if (L >= 10) p.push({ r: [23,33,34,34], c: 'H' }, { e: [28.5,33.5,2.6,1.8], c: 'T' });
+        // aileron tranchant sur le crâne, penché vers l'arrière
+        p.push({ p: scaleAbout([[25.5,3.5],[22,-7],[24.2,-7.6],[30,2.5]], [27, 3], hf), c: 'O', head: true });
+        p.push({ p: scaleAbout([[26,3],[22.8,-5.6],[23.8,-6],[27.4,2.8]], [27, 3], hf), c: 'D', head: true });
+        // tête de requin : museau pointu vers l'avant, mâchoire claire, dents, branchies
+        p.push({ e: [30,7.5,6.4,5.6], c: 'O', head: true }, { p: [[33,3],[42,6.8],[40.8,10.8],[33,13.4]], c: 'O', head: true });
+        p.push({ p: [[28,12.4],[40.8,10.6],[37,14.2],[28,14.8]], c: 'B', head: true });
+        var tk = L >= 7 ? 1.35 : 1.1;
+        [34.4, 36.5, 38.5].forEach(function (x) { p.push({ p: [[x - 0.9 * tk, 12],[x, 12 + 1.9 * tk],[x + 0.9 * tk, 11.8]], c: 'W', head: true }); });
+        [25, 26.6, 28.2].forEach(function (x) { p.push({ p: [[x,5],[x + 0.7,5],[x + 0.4,10.5],[x - 0.3,10.5]], c: 'M', head: true }); });
+        p.push({ p: [[30.5,3.4],[35.5,4.6],[30.8,5]], c: 'M', head: true }); // sourcil froncé
+        if (L >= 7) p.push({ p: [[30.3,1.8],[31.3,1.6],[33.8,7.5],[32.8,7.7]], c: 'b', head: true });
+        // bras avant : épaule, biceps énorme, avant-bras, nageoire en guise de poing
+        p.push({ e: [37,21,4.2 * mk,3.8 * mk], c: 'O', ol: true, tag: 'fa' }, { e: [38.5,26.5,3.4 * mk,4.4 * mk], c: 'O', ol: true, tag: 'fa' });
+        p.push({ e: [39,32,3 * mk,3.4 * mk], c: 'O', ol: true, tag: 'fa' }, { p: [[37,35],[42,35],[44,40],[38.5,38.5]], c: 'O', ol: true, tag: 'fa' });
+        p.push({ p: [[36.5,24.5],[39.5,23.5],[40,26],[37,26.5]], c: 'L', tag: 'fa' }); // reflet sur le biceps
+        if (L >= 7) p.push({ r: [37,32.5,41.5,33.5], c: 'H', tag: 'fa' });
+        return p;
+      }
     }
   };
   // Génère la définition du sprite d'une espèce à un niveau : formes mises à l'échelle + points d'ancrage
@@ -1558,7 +1626,7 @@
     if (!o && (!st || st.dead)) return { O: '#9a9aae', L: '#cfcfdc', D: '#6a6a7e', B: '#d8d8e4', b: '#a8a8b8', S: '#7a7a8e', W: '#ffffff', K: K, V: '#5a5a6e', v: '#3e3e50', H: '#e0e0ea', T: '#e0e0ea', M: '#55556a' };
     var s = o ? 80 : Math.round(45 + st.joy * 0.5), lf = o ? 5 : Math.round(st.food * 0.08), lvl = o ? o.lvl : Math.max(0, cre.stage), leg = lvl === 9, sp = o ? o.sp : speciesOf(st);
     // Teinte d'origine propre à chaque espèce (le phénix passe du jaune poussin au rouge feu), sinon celle achetée en boutique
-    var natural = ({ phenix: Math.round(50 - lvl * 4.6), renard: 22, lezard: 100, meduse: 158, horus: 36, lapin: 28 })[sp];
+    var natural = ({ phenix: Math.round(50 - lvl * 4.6), renard: 22, lezard: 100, meduse: 158, horus: 36, lapin: 28, requin: 205 })[sp];
     if (natural === undefined) natural = leg ? 12 : 26;
     var col = (!o && st.color) || 'orange', hue = col === 'orange' ? natural : HUES[col];
     if (col === 'or') { s = Math.min(100, s + 10); lf += 6; }
@@ -1589,6 +1657,12 @@
       c.O = 'hsl(' + hue + ',' + ls + '%,' + (60 + lf) + '%)'; c.L = 'hsl(' + hue + ',' + ls + '%,' + (76 + lf) + '%)'; c.D = 'hsl(' + hue + ',' + ls + '%,' + (44 + lf) + '%)';
       c.B = '#fff6ec'; c.b = '#d8c8b8'; c.S = rb || '#ff9ab8'; c.H = '#ffd23f'; c.T = '#e8203a';
       c.M = 'hsl(' + hue + ',' + ls + '%,' + (30 + lf) + '%)';
+    } else if (sp === 'requin') { // gris-bleu océan, ventre blanc, dents blanches, aileron royal turquoise
+      var rs = Math.round(s * (col === 'orange' ? 0.45 : 0.85));
+      c.O = 'hsl(' + hue + ',' + rs + '%,' + (52 + lf) + '%)'; c.L = 'hsl(' + hue + ',' + rs + '%,' + (68 + lf) + '%)'; c.D = 'hsl(' + hue + ',' + rs + '%,' + (36 + lf) + '%)';
+      c.M = 'hsl(' + hue + ',' + rs + '%,' + (30 + lf) + '%)';
+      c.B = '#f4f8ff'; c.b = '#e8c8c8'; c.S = rb || (leg ? '#ffd23f' : '#5ef2ff');
+      c.V = leg ? '#1ac8d8' : '#2a8aff'; c.v = leg ? '#0a5a7a' : '#14407a';
     } else if (sp === 'horus') {
       c.B = '#f8f4e8'; c.b = '#d8ccb0'; c.H = rb || '#ffd23f'; c.S = leg ? '#b0782e' : '#8a5428';
       c.V = '#2a5ad8'; c.v = '#1a2a8a'; c.M = '#14206a'; c.T = leg ? '#ff8a1f' : '#ff3d2e';
@@ -1617,7 +1691,7 @@
   };
   function drawEye(ex, ey, kind) {
     var sp = speciesOf(st);
-    var G = sp === 'meduse' && cre.stage >= 6 ? '#5ef2ff' : cre.stage === 9 ? '#ffc21a' : ({ dino: '#3fd46a', phenix: '#ff7a2e', renard: '#ffd23f', lezard: '#ff4f6f', meduse: '#7dff7a', horus: '#2a8aff', lapin: '#ff3d4a' })[sp];
+    var G = sp === 'meduse' && cre.stage >= 6 ? '#5ef2ff' : cre.stage === 9 ? '#ffc21a' : ({ dino: '#3fd46a', phenix: '#ff7a2e', renard: '#ffd23f', lezard: '#ff4f6f', meduse: '#7dff7a', horus: '#2a8aff', lapin: '#ff3d4a', requin: '#ffd23f' })[sp];
     var pal = { K: K, W: '#fff4d8', G: G, S: K };
     var pat = kind === 'dead' ? EYES.dead : (cre.blink > 0 || kind === 'sleep') ? EYES.blink : kind === 'happy' ? EYES.happy : kind === 'sad' ? EYES.sad : EYES.normal;
     for (var y = 0; y < 5; y++) for (var x = 0; x < 6; x++) { var c = pat[y][x]; if (c !== '.') D(ex - 1 + x, ey + y, pal[c]); }
@@ -1736,7 +1810,54 @@
       D(ex, ey + 2, '#8a8aff'); row(ey + 2, ex - 4, ex - 2, K); D(ex + 5, ey + 2, K);
     }
   }
+  // ---------- Œuf : éclosion après une mort, ou œuf mystère acheté en boutique ----------
+  var EGG_TIME = 3.6;
+  function startEgg(data, morph) {
+    cre.egg = EGG_TIME; cre.eggMorph = morph; cre.eggCrack = 0;
+    cre.evo = 0; cre.stage = -1; cre.emote = null; cre.jy = 0; cre.vy = 0; cre.dash = 0;
+    Audio8.fx('evo');
+    setDialog('SYSTÈME', morph ? st.name + ' se transforme en œuf mystère… Qu’est-ce qui va en sortir ?' : 'Un œuf ! Il bouge… il va éclore !', EGG_TIME * 1000 + 300, true);
+  }
+  function updateEgg(dt) {
+    cre.egg -= dt;
+    var crack = cre.egg < EGG_TIME * 0.25 ? 3 : cre.egg < EGG_TIME * 0.5 ? 2 : cre.egg < EGG_TIME * 0.75 ? 1 : 0;
+    if (crack > cre.eggCrack) { cre.eggCrack = crack; Audio8.fx('deny'); shake = 0.15; spawnSparks(cre.x, groundY - 18 * C, 6, '#fff4d8'); }
+    if (cre.egg > 0) return;
+    cre.egg = 0;
+    Audio8.fx('hatch'); flash(); shake = 0.4; jump(170);
+    spawnSparks(cre.x, groundY - 15 * C, 50);
+    spawnSparks(cre.x, groundY - 10 * C, 16, '#fff4d8'); // éclats de coquille
+    setDialog('SYSTÈME', 'C’est ' + SPECIES[speciesOf(st)].name + ' ! Bonjour, ' + st.name + ' !' + (cre.eggMorph ? ' Retour au niveau 1.' : ''), 6000, true);
+  }
+  // Œuf en pixels : coquille crème à taches, qui tremble de plus en plus et se fissure
+  function drawEgg() {
+    var EW = 17, EH = 21, cx = 8, cy = 12, p = 1 - cre.egg / EGG_TIME, u = C;
+    var amp = reduce ? 0 : p < 0.3 ? 0.6 : p < 0.7 ? 1.4 : 2.4, wob = Math.sin(T * (8 + p * 18)) * amp;
+    var x0 = Math.round(cre.x - EW * u / 2), y0 = groundY - EH * u;
+    var cracks = [[2, 9], [3, 8], [4, 9], [5, 10], [6, 9], [7, 8], [8, 9], [9, 10], [10, 9], [11, 8], [12, 9], [13, 10], [14, 9]];
+    g.fillStyle = 'rgba(0,0,0,.35)'; g.fillRect(Math.round(cre.x - 6 * u), groundY - u, 12 * u, u);
+    for (var y = 0; y < EH; y++) {
+      var sh = Math.round(wob * (1 - y / EH)); // le haut oscille, la base reste posée
+      for (var x = 0; x < EW; x++) {
+        var dx = (x - cx) / 8.5, dy = (y - cy) / (y < cy ? 12 : 9), r = dx * dx + dy * dy;
+        if (r > 1) continue;
+        var col = r > 0.78 ? K : (x - cx) > 4 - (y - cy) * 0.3 ? '#e2cfa6' : '#fff4d8';
+        if (col !== K && ((x - 5) * (x - 5) + (y - 6) * (y - 6) < 3 || (x - 11) * (x - 11) + (y - 13) * (y - 13) < 4 || (x - 4) * (x - 4) + (y - 15) * (y - 15) < 2)) col = cre.eggMorph ? '#b23aff' : '#3fd46a';
+        if (col !== K && x > 3 && x < 7 && y > 3 && y < 6 && (x + y) % 2) col = '#ffffff'; // reflet
+        g.fillStyle = col; g.fillRect(x0 + (x + sh) * u, y0 + y * u, u, u);
+      }
+    }
+    // fissures : de plus en plus longues
+    var n = [0, 4, 8, 13][cre.eggCrack || 0];
+    g.fillStyle = K;
+    for (var i = 0; i < n; i++) {
+      var c = cracks[i], s2 = Math.round(wob * (1 - c[1] / EH));
+      g.fillRect(x0 + (c[0] + s2) * u, y0 + c[1] * u, u, u);
+    }
+    return { x: cre.x, y: y0 + 10 * u, top: y0 };
+  }
   function drawCreature() {
+    if (cre.egg > 0) return drawEgg();
     var si = cre.stage < 0 ? 0 : cre.stage;
     var evoWhite = false;
     if (cre.evo > 0) {
@@ -1836,12 +1957,12 @@
   var NOTE = ['..KK', '..K.', '..K.', 'KKK.', 'KK..'];
   function pickEmote() {
     var lv = Math.max(0, cre.stage), pool = ['jump', 'jump', 'laugh', 'laugh', 'sneeze', 'dance', 'read'];
-    var fours = { lezard: 1, renard: 1 }[speciesOf(st)] || (speciesOf(st) === 'lapin' && lv < 4); // à quatre pattes : pas de squats
+    var fours = { lezard: 1, renard: 1 }[speciesOf(st)] || ((speciesOf(st) === 'lapin' || speciesOf(st) === 'requin') && lv < 4); // à quatre pattes : pas de squats
     if (lv >= 3 && !fours) pool.push('squat', 'squat');
     if (lv >= 2 && fours) pool.push('sprint', 'sprint'); // les quadrupèdes font un sprint à la place
     if (lv >= 5) pool.push('flex');
     if (lv >= 6) pool.push('roar');
-    if (speciesOf(st) === 'lapin' && lv >= 4) pool.push('squat', 'flex', 'flex');
+    if ((speciesOf(st) === 'lapin' || speciesOf(st) === 'requin') && lv >= 4) pool.push('squat', 'flex', 'flex');
     return pool[Math.random() * pool.length | 0];
   }
   function startEmote(k) {
@@ -2026,7 +2147,7 @@
   }
 
   // ---------- Teasers : d'autres espèces passent au loin, s'arrêtent pour regarder, puis repartent ----------
-  var TEASE_LABEL = { dino: 'un dino', phenix: 'un phénix', renard: 'un renard mystique', lezard: 'un lézard géant', meduse: 'une gorgone', horus: 'un dieu-faucon ÉPIQUE', lapin: 'un lapin de combat' };
+  var TEASE_LABEL = { dino: 'un dino', phenix: 'un phénix', renard: 'un renard mystique', lezard: 'un lézard géant', meduse: 'une gorgone', horus: 'un dieu-faucon ÉPIQUE', lapin: 'un lapin de combat', requin: 'un requin des terres' };
   var QMARK = ['QQQ', '..Q', '.Q.', '...', '.Q.'];
   var tease = null, teaseNext = 30 + Math.random() * 40;
   function spawnTease(sp) {
@@ -2060,8 +2181,9 @@
     if (t.pause <= 0) { var f = Math.floor(t.walkT * 7) % 4; pose = f === 0 ? 'w1' : f === 2 ? 'w2' : 'idle'; }
     var grid = spriteGrid(t.key, pose), cols = creCols({ sp: t.sp, lvl: t.lvl });
     var face = t.pause > 0 ? (cre.x > t.x ? 1 : -1) : t.dir, fl = face < 0;
-    var x0 = Math.round(t.x - sd.gw / 2), y0 = groundY - 4 - sd.gh, bob = t.pause <= 0 ? Math.floor(t.walkT * 7) % 2 : 0;
-    g.fillStyle = 'rgba(0,0,0,.25)'; g.fillRect(x0 + Math.round(sd.gw * 0.25), groundY - 5, Math.round(sd.gw * 0.5), 1);
+    // Posée sur le sol, comme la créature principale (dernière ligne du sprite sur groundY)
+    var x0 = Math.round(t.x - sd.gw / 2), y0 = groundY - sd.gh + 1, bob = t.pause <= 0 ? Math.floor(t.walkT * 7) % 2 : 0;
+    g.fillStyle = 'rgba(0,0,0,.3)'; g.fillRect(x0 + Math.round(sd.gw * 0.25), groundY - 1, Math.round(sd.gw * 0.5), 1);
     g.globalAlpha = 0.92;
     for (y = 0; y < sd.gh; y++) for (x = 0; x < sd.gw; x++) {
       var ch = grid[y][x]; if (ch === '.') continue;
@@ -2072,6 +2194,249 @@
     g.fillStyle = K; g.fillRect(x0 + (fl ? sd.gw - 1 - ex : ex), y0 + ey, 1, 1);
     g.globalAlpha = 1;
     if (t.pause > 0 && Math.floor(T * 3) % 2) spr(QMARK, { Q: '#ffe25e' }, x0 + Math.round(sd.gw / 2) - 1, y0 - 2);
+  }
+
+  // ---------- Mini-jeux : une occasion apparaît de temps en temps (bouton clignotant), partie de 20 s ----------
+  var GAMES = {
+    catch: { name: 'ATTRAPE-MIAM', help: 'Déplace la créature (doigt, souris ou flèches) pour attraper la nourriture. Évite les bombes !' },
+    mole: { name: 'TAPE-CORNICHONS', help: 'Tape les cornichons qui sortent des trous. Les dorés valent 3. Surtout pas les bombes !' },
+    rhythm: { name: 'DANSE-RYTHME', help: 'Tape (ou ESPACE) quand une note passe dans le cercle. Enchaîne pour le combo !' }
+  };
+  var GAME_DUR = 20, GAME_INTRO = 2.4, GAME_OUTRO = 3;
+  var game = null, gameOffer = null, gameNext = 60 + Math.random() * 90;
+  var FOODS = [
+    { rows: ['..KK..', '.KYYK.', 'KYRYYK', 'KYYYRK', '.KYYK.', '..KK..'], pal: { K: K, Y: '#ffd23f', R: '#e43b44' } },            // pizza
+    { rows: ['.KKKK.', 'KOOOOK', 'KOLOOK', 'KOOOLK', 'KOOOOK', '.KKKK.'], pal: { K: K, O: '#ff8a1f', L: '#ffd28a' } },            // croissant
+    { rows: ['...G..', '.KKGK.', 'KRRRRK', 'KRWRRK', 'KRRRRK', '.KKKK.'], pal: { K: K, R: '#e43b44', W: '#ffffff', G: '#3fd46a' } }, // pomme
+    { rows: ['.KKKK.', 'KGGGGK', 'KGLGGK', 'KGGLGK', 'KGGGGK', '.KKKK.'], pal: { K: K, G: '#3fd46a', L: '#9aff8a' } }               // cornichon
+  ];
+  var BOMB = { rows: ['....F.', '...K..', '.KKKK.', 'KKWKKK', 'KKKKKK', 'KKKKKK', '.KKKK.'], pal: { K: '#2a2a3e', W: '#ffffff', F: '#ff8a1f' } };
+  var PICKLE = ['.KKK.', 'KGGGK', 'KWGWK', 'KKGKK', 'KGGGK', 'KGLGK', 'KGGGK', 'KGGGK', '.KKK.'];
+
+  function gameOverlayOpen() { return shopOpen || achOpen || hallOpen || nickOpen; }
+  function updateGameOffer() {
+    var b = $('gameBtn');
+    if (game) { b.hidden = true; return; }
+    if (gameOffer) {
+      if (T > gameOffer.until || !st || st.dead || gameOverlayOpen()) { gameOffer = null; b.hidden = true; gameNext = T + 90 + Math.random() * 120; return; }
+      b.querySelector('small').textContent = GAMES[gameOffer.kind].name + ' · ' + Math.ceil(gameOffer.until - T) + ' S';
+      return;
+    }
+    if (started && st && !st.dead && !asleep() && !document.hidden && !gameOverlayOpen() && !cre.travel && !(cre.egg > 0) && T > gameNext) {
+      var ks = Object.keys(GAMES);
+      gameOffer = { kind: ks[Math.floor(Math.random() * ks.length)], until: T + 12 };
+      b.hidden = false; Audio8.fx('bonus');
+    }
+  }
+  function acceptGame() {
+    if (!gameOffer || game) return;
+    var kind = gameOffer.kind; gameOffer = null; $('gameBtn').hidden = true;
+    gameNext = T + 180 + Math.random() * 240;
+    call('POST', '/api/game/start', { kind: kind }).then(function (r) {
+      if (r.code !== 200) return setDialog('SYSTÈME', 'Pas de mini-jeu possible pour l’instant, réessaie plus tard.', 3000, true);
+      beginGame(kind);
+    }).catch(function () { setDialog('SYSTÈME', 'Erreur réseau.', 3000, true); });
+  }
+  function beginGame(kind) {
+    gameEvent('game_start', kind);
+    gamingUi(true);
+    game = { kind: kind, t: 0, score: 0, items: [], spawn: 0.6, combo: 0, px: cre.x, keys: 0, live: true, sent: false, msg: null };
+    cre.emote = null; cre.dash = 0; cre.jy = 0; cre.vy = 0; cre.tx = cre.x;
+    Audio8.fx('start');
+    setDialog('SYSTÈME', GAMES[kind].name + ' : ' + GAMES[kind].help, (GAME_INTRO + 4) * 1000, true);
+    if (kind === 'mole') {
+      var top = gameTop + 40, bot = groundY - 20, xs = [0.2, 0.5, 0.8];
+      game.holes = [];
+      [top + (bot - top) * 0.25, top + (bot - top) * 0.75].forEach(function (y) { xs.forEach(function (fx) { game.holes.push({ x: Math.round(playR * fx), y: Math.round(y), it: null }); }); });
+    }
+    if (kind === 'rhythm') { // partition : une note par temps (120 bpm), avec des trous, et des doubles croches après 10 s
+      game.notes = [];
+      for (var t = 1; t < GAME_DUR - 0.4; t += 0.5) {
+        if (Math.random() < 0.72) game.notes.push({ t: t, hit: false, miss: false });
+        if (t > 10 && Math.random() < 0.25) game.notes.push({ t: t + 0.25, hit: false, miss: false });
+      }
+      game.lane = Math.round(gameTop + 34 + (groundY - gameTop - 34) * 0.3); game.tx = 34;
+    }
+  }
+  // Pendant une partie, le journal est masqué : le jeu prend toute la largeur
+  function gamingUi(on) { document.body.classList.toggle('gaming', on); resize(); }
+  function gameEvent(name, kind) { gaEvent(name, { game: kind }); }
+  function gamePlayT() { return game.t - GAME_INTRO; } // temps de jeu (négatif pendant le compte à rebours)
+  function gameFloat(text, col, x, y) { parts.push({ k: 'txt', text: text, col: col, x: x, y: y, vx: 0, vy: -24, gr: 0, life: 0.9 }); }
+  function gameAdd(n, x, y) {
+    game.score = Math.max(0, game.score + n);
+    gameFloat((n > 0 ? '+' : '') + n, n > 0 ? '#7dff7a' : '#ff4f6f', x, y);
+  }
+
+  function updateGame(dt) {
+    updateGameOffer();
+    if (!game) return;
+    game.t += dt;
+    var pt = gamePlayT(), i;
+    if (pt >= GAME_DUR) { finishGame(); if (game && game.t > GAME_INTRO + GAME_DUR + GAME_OUTRO && game.sent) { game = null; gamingUi(false); } return; }
+    if (pt < 0) return;
+    if (game.kind === 'catch') {
+      game.spawn -= dt;
+      if (game.spawn <= 0) {
+        game.spawn = Math.max(0.32, 0.62 - pt * 0.012) * (0.7 + Math.random() * 0.6);
+        var bad = Math.random() < 0.2 + pt * 0.005;
+        game.items.push({ x: 18 + Math.random() * (playR - 36), y: gameTop + 26, vy: 45 + Math.random() * 25 + pt * 2.5, bad: bad, f: Math.floor(Math.random() * FOODS.length) });
+      }
+      for (i = game.items.length - 1; i >= 0; i--) {
+        var it = game.items[i]; it.y += it.vy * dt;
+        var half = (SPRITES[sprKey(Math.max(0, cre.stage))] || { gw: 40 }).gw * C * 0.4;
+        if (it.y >= mouth.top && it.y <= groundY && Math.abs(it.x - cre.x) < half) {
+          game.items.splice(i, 1);
+          if (it.bad) { gameAdd(-3, it.x, it.y); shake = 0.3; flash('red'); Audio8.fx('deny'); spawnSparks(it.x, it.y, 14, '#ff8a1f'); }
+          else { gameAdd(1, it.x, it.y); cre.eat = 0.3; Audio8.fx('chomp'); spawnSparks(it.x, it.y, 6, '#ffd23f'); }
+        } else if (it.y > groundY + 4) game.items.splice(i, 1);
+      }
+    } else if (game.kind === 'mole') {
+      game.spawn -= dt;
+      if (game.spawn <= 0) {
+        game.spawn = Math.max(0.3, 0.75 - pt * 0.02) * (0.7 + Math.random() * 0.6);
+        var free = game.holes.filter(function (h) { return !h.it; });
+        if (free.length) {
+          var h = free[Math.floor(Math.random() * free.length)], r = Math.random();
+          h.it = { t: 0, life: Math.max(0.6, 1.1 - pt * 0.025), k: r < 0.17 ? 'bomb' : r < 0.29 ? 'gold' : 'pickle' };
+        }
+      }
+      game.holes.forEach(function (h) { if (h.it) { h.it.t += dt; if (h.it.t > h.it.life) h.it = null; } });
+    } else if (game.kind === 'rhythm') {
+      if (!cre.emote) startEmote('dance');
+      game.notes.forEach(function (n) { if (!n.hit && !n.miss && pt - n.t > 0.18) { n.miss = true; game.combo = 0; } });
+    }
+  }
+  function finishGame() {
+    if (game.sent) return;
+    game.sent = true; game.live = false; game.items = [];
+    if (game.holes) game.holes.forEach(function (h) { h.it = null; });
+    var g0 = game;
+    Audio8.fx('ach');
+    call('POST', '/api/game/end', { score: g0.score }).then(function (r) {
+      if (r.code !== 200) { g0.msg = 'PARTIE NON COMPTÉE'; return; }
+      g0.msg = (r.body.gameRecord && r.body.gameScore > 0 ? 'RECORD PERSO ! ' : 'MEILLEUR : ' + r.body.gameBest + ' · ') + (r.body.gained ? '+' + r.body.gained + ' PTS' : 'PLUS DE POINTS AUJOURD’HUI, MAIS BIEN JOUÉ !');
+      if (r.body.gained) parts.push({ k: 'txt', text: '+' + r.body.gained + ' PTS', col: '#ffe25e', x: cre.x + 20 * C, y: mouth.top, vx: 0, vy: -18, gr: 0, life: 1.6 });
+      gameEvent('game_end', g0.kind);
+      apply(r.body, true);
+    }).catch(function () { g0.msg = 'ERREUR RÉSEAU'; });
+  }
+  // La créature pendant une partie : elle suit le joueur (Attrape-miam), danse (rythme) ou encourage (cornichons)
+  function gameCreature(dt) {
+    cre.walking = false;
+    if (game.kind === 'catch' && game.live) {
+      if (game.keys) game.px = cre.x + game.keys * 40;
+      var half = (SPRITES[sprKey(Math.max(0, cre.stage))] || { gw: 40 }).gw * C / 2;
+      var tx = Math.max(half, Math.min(playR - half, game.px)), d = tx - cre.x;
+      if (Math.abs(d) > 1) { cre.x += Math.sign(d) * Math.min(Math.abs(d), 150 * dt); cre.dir = d > 0 ? 1 : -1; cre.walking = true; cre.walkT += dt * 1.5; }
+    }
+    if (game.kind === 'rhythm') updateEmote(dt);
+  }
+  function gameTap(x, y) {
+    if (!game.live || gamePlayT() < 0) return;
+    if (game.kind === 'catch') { game.px = x; return; }
+    if (game.kind === 'mole') {
+      for (var i = 0; i < game.holes.length; i++) {
+        var h = game.holes[i];
+        if (!h.it || Math.abs(x - h.x) > 15 || y < h.y - 26 || y > h.y + 6) continue;
+        var k = h.it.k; h.it = null;
+        if (k === 'bomb') { gameAdd(-3, h.x, h.y - 16); shake = 0.3; flash('red'); Audio8.fx('deny'); spawnSparks(h.x, h.y - 8, 16, '#ff8a1f'); }
+        else { gameAdd(k === 'gold' ? 3 : 1, h.x, h.y - 16); Audio8.fx(k === 'gold' ? 'bonus' : 'chomp'); spawnSparks(h.x, h.y - 8, 10, k === 'gold' ? '#ffd23f' : '#7dff7a'); if (Math.random() < 0.3) jump(90); }
+        return;
+      }
+      return;
+    }
+    // rythme : la note la plus proche du cercle
+    var pt = gamePlayT(), best = null;
+    game.notes.forEach(function (n) { if (!n.hit && !n.miss && Math.abs(n.t - pt) < 0.18 && (!best || Math.abs(n.t - pt) < Math.abs(best.t - pt))) best = n; });
+    if (!best) { game.combo = 0; gameFloat('RATÉ', '#ff4f6f', game.tx, game.lane - 12); Audio8.fx('deny'); return; }
+    best.hit = true; game.combo++;
+    var perfect = Math.abs(best.t - pt) < 0.07, n2 = perfect ? 2 : 1;
+    if (game.combo % 10 === 0) { n2 += 2; gameFloat('COMBO ' + game.combo + ' !', '#ffd23f', playCx, game.lane - 24); }
+    game.score += n2;
+    gameFloat(perfect ? 'PARFAIT' : 'BIEN', perfect ? '#5ef2ff' : '#7dff7a', game.tx, game.lane - 12);
+    spawnSparks(game.tx, game.lane, perfect ? 10 : 5, perfect ? '#5ef2ff' : '#7dff7a');
+    Audio8.fx(perfect ? 'jump' : 'blip');
+  }
+  function gameKey(k, e) {
+    if (game.kind === 'catch') { if (k === 'arrowleft' || k === 'q' || k === 'a') game.keys = -1; else if (k === 'arrowright' || k === 'd') game.keys = 1; return; }
+    if (game.kind === 'rhythm' && (k === ' ' || k === 'enter')) { e.preventDefault(); gameTap(0, 0); }
+  }
+
+  // Texte centré qui tient toujours dans la zone de jeu : le gros texte rapetisse, le petit passe à la ligne.
+  // Renvoie la hauteur utilisée, pour placer la ligne suivante.
+  function gameText(text, x, y, col, big) {
+    var maxW = playR - 8, size = big ? 16 : 8, lines = [text];
+    g.textAlign = 'center';
+    g.font = size + 'px "Press Start 2P", monospace';
+    if (big && g.measureText(text).width > maxW) { size = 8; g.font = '8px "Press Start 2P", monospace'; }
+    if (g.measureText(text).width > maxW) {
+      lines = []; var cur = '';
+      text.split(' ').forEach(function (w) {
+        var t = cur ? cur + ' ' + w : w;
+        if (cur && g.measureText(t).width > maxW) { lines.push(cur); cur = w; } else cur = t;
+      });
+      if (cur) lines.push(cur);
+    }
+    lines.forEach(function (l, i) {
+      var ly = Math.floor(y) + i * (size + 3);
+      g.fillStyle = '#000'; g.fillText(l, Math.floor(x) + 1, ly + 1);
+      g.fillStyle = col; g.fillText(l, Math.floor(x), ly);
+    });
+    return lines.length * (size + 3);
+  }
+  function drawGame() {
+    if (!game) return;
+    var pt = gamePlayT(), i;
+    if (game.kind !== 'catch') { g.fillStyle = 'rgba(8,4,24,.28)'; g.fillRect(0, gameTop, playR, groundY - gameTop); }
+    if (game.kind === 'catch') game.items.forEach(function (it) {
+      var sp = it.bad ? BOMB : FOODS[it.f];
+      spr(sp.rows, sp.pal, it.x - 6, it.y - 6, false, 2);
+      if (it.bad && Math.floor(T * 10) % 2) { g.fillStyle = '#ffe25e'; g.fillRect(Math.floor(it.x + 3), Math.floor(it.y - 8), 2, 2); }
+    });
+    if (game.kind === 'mole') game.holes.forEach(function (h) {
+      g.fillStyle = '#1a0b14'; g.fillRect(h.x - 13, h.y - 2, 26, 5); g.fillRect(h.x - 11, h.y - 3, 22, 7);
+      g.fillStyle = '#3a2410'; g.fillRect(h.x - 14, h.y + 3, 28, 2);
+      if (h.it) {
+        var a = h.it.t / h.it.life, rise = Math.min(1, a * 5, (1 - a) * 5), top = h.y - Math.round(rise * 20);
+        g.save(); g.beginPath(); g.rect(h.x - 15, h.y - 30, 30, 31); g.clip(); // l'objet sort du trou
+        if (h.it.k === 'bomb') spr(BOMB.rows, BOMB.pal, h.x - 6, top, false, 2);
+        else spr(PICKLE, { K: K, G: h.it.k === 'gold' ? '#ffd23f' : '#3fd46a', L: h.it.k === 'gold' ? '#fff3a0' : '#9aff8a', W: '#ffffff' }, h.x - 5, top, false, 2);
+        g.restore();
+        g.fillStyle = '#1a0b14'; g.fillRect(h.x - 13, h.y, 26, 2);
+      }
+    });
+    if (game.kind === 'rhythm') {
+      var lane = game.lane, tx = game.tx, speed = 95;
+      g.fillStyle = 'rgba(255,255,255,.15)'; g.fillRect(0, lane - 1, playR, 3);
+      var pulse = Math.max(0, 1 - ((pt % 0.5 + 0.5) % 0.5) * 6);
+      g.strokeStyle = pulse > 0.2 ? '#ffffff' : '#5ef2ff'; g.lineWidth = 2;
+      g.beginPath(); g.arc(tx, lane, 9 + pulse * 2, 0, Math.PI * 2); g.stroke(); g.lineWidth = 1;
+      game.notes.forEach(function (n) {
+        if (n.hit) return;
+        var x = tx + (n.t - pt) * speed;
+        if (x > playR + 10 || x < -10) return;
+        var col = n.miss ? '#6a6a7e' : (Math.round(n.t * 4) % 2 ? '#ff5ec8' : '#ffd23f');
+        g.fillStyle = K; g.fillRect(Math.round(x) - 5, lane - 5, 10, 10);
+        g.fillStyle = col; g.fillRect(Math.round(x) - 4, lane - 4, 8, 8);
+        g.fillStyle = '#ffffff'; g.fillRect(Math.round(x) - 3, lane - 3, 2, 2);
+      });
+      if (game.combo >= 3) gameText('COMBO ×' + game.combo, tx + 40, lane + 22, '#ffd23f');
+    }
+    // bandeau : nom, score, temps restant
+    var y0 = gameTop + 12;
+    gameText(GAMES[game.kind].name, playCx, y0, '#5ef2ff');
+    gameText('SCORE ' + game.score, playCx, y0 + 11, '#ffffff');
+    var left = Math.max(0, Math.min(1, 1 - pt / GAME_DUR)), bw = Math.min(160, playR - 40);
+    g.fillStyle = K; g.fillRect(Math.round(playCx - bw / 2) - 1, y0 + 15, bw + 2, 5);
+    g.fillStyle = left < 0.25 ? '#ff4f6f' : '#7dff7a'; g.fillRect(Math.round(playCx - bw / 2), y0 + 16, Math.round(bw * left), 3);
+    var cy = Math.round(gameTop + (groundY - gameTop) * 0.45);
+    if (pt < 0) { var c = Math.ceil(-pt / (GAME_INTRO / 3)); gameText(c > 0 && c <= 3 ? String(c) : 'GO !', playCx, cy, '#ffe25e', true); }
+    else if (pt < 0.6) gameText('GO !', playCx, cy, '#7dff7a', true);
+    if (pt >= GAME_DUR) {
+      var hEnd = gameText('FIN ! SCORE ' + game.score, playCx, cy, '#ffe25e', true);
+      gameText(game.msg || '…', playCx, cy + hEnd + 2, '#ffffff');
+    }
   }
 
   // ---------- Toucher l'écran : petits points en rafale (comptés et plafonnés par le serveur) ----------
@@ -2213,6 +2578,8 @@
     if (T > cre.nextBlink) { cre.blink = 0.12; cre.nextBlink = T + 2 + Math.random() * 4; }
 
     if (cre.travel) { cre.walking = false; updateTravel(dt); return; }
+    if (cre.egg > 0) { cre.walking = false; updateEgg(dt); return; }
+    if (game) { gameCreature(dt); return; }
     // Balade gauche / droite
     var half = (SPRITES[sprKey(Math.max(0, cre.stage))] || { gw: 48 }).gw * C / 2, range = Math.max(0, Math.min(playR * 0.28, 70, playR / 2 - half - 4));
     if (cre.dash > 0) cre.dash -= dt;
@@ -2246,8 +2613,11 @@
     updateCreature(dt);
     updateBonus(dt);
     updateTease(dt);
+    updateGame(dt);
     if (shake > 0) shake -= dt;
     if (rainbow() && Math.random() < dt * 2.5) spawnSparks(cre.x + (Math.random() - 0.5) * 30 * C, groundY - Math.random() * 30 * C, 2);
+    // Le requin vit hors de l'eau : quelques bulles remontent autour de lui
+    if (speciesOf(st) === 'requin' && st && !st.dead && !(cre.egg > 0) && cre.evo <= 0 && Math.random() < dt * 1.6) spawnBubbles(1);
     // Aura de combat du lapin debout : flammèches rouges (roses pour la légende) qui montent autour de lui
     if (speciesOf(st) === 'lapin' && st && !st.dead && cre.stage >= 4 && cre.evo <= 0 && Math.random() < dt * (cre.stage === 9 ? 22 : 12)) parts.push({ k: 'spark', x: cre.x + (Math.random() - 0.5) * 26 * C, y: groundY - Math.random() * 12 * C, vx: (Math.random() - 0.5) * 6, vy: -30 - Math.random() * 35, gr: -15, life: 0.7 + Math.random() * 0.6, col: cre.stage === 9 ? (Math.random() < 0.5 ? '#ff4fc8' : '#ffd23f') : (Math.random() < 0.6 ? '#ff3250' : '#ff8a1f') });
     if (speciesOf(st) === 'horus' && st && !st.dead && cre.evo <= 0 && Math.random() < dt * 3) parts.push({ k: 'spark', x: cre.x + (Math.random() - 0.5) * 30 * C, y: groundY - Math.random() * 40 * C, vx: 0, vy: -12, gr: 0, life: 0.8, col: '#ffe98a' }); // aura de la créature épique
@@ -2354,6 +2724,7 @@
       }
     }
     g.globalAlpha = 1;
+    drawGame();
     if (cre.travel) drawWipe();
     g.restore();
   }
@@ -2368,20 +2739,63 @@
      HUD & DIALOGUE
      ===================================================================== */
   var SAYINGS = {
-    happy: ['Je suis ravi.', 'La vie est belle !', 'Quelqu’un a un cornichon ?', 'Je vous aime tous. Un peu.', 'Je brille de mille couleurs !'],
-    ok: ['Ça va, ça va.', 'Je digère.', 'Je regarde le plafond.', 'Qu’est-ce qu’on mange ?'],
-    sad: ['Personne ne m’aime…', 'Un câlin ? Même un petit.', 'Je me sens comme une chaussette seule.'],
-    hungry: ['J’ai tellement faim.', 'Je mangerais mon propre chapeau.', 'À manger. S’il vous plaît.'],
-    dying: ['Dites à ma mère que je l’aime…', 'La lumière… elle sent le fromage…', 'Un dernier croissant ?'],
-    dirty: ['Je sens un peu le fromage. Beaucoup, en fait.', 'Un bain ? Pourquoi pas…', 'Les mouches m’adorent.'],
-    tired: ['*bâille*', 'Mes yeux se ferment tout seuls…', 'Quelqu’un me borde ?'],
-    soft: ['Je suis tout mou.', 'On joue ? Allez, on joue !', 'J’ai besoin de me dépenser !'],
-    sleeping: ['Zzz…', 'Zzz… cornichon… zzz…', '*ronfle doucement*'],
-    cold: ['Brrr… il fait froid ici.', 'Un bonnet ? Une écharpe ? Un câlin ?'],
-    montagne: ['Quelle vue !', 'Il neige, il neige !', 'Je suis bien couvert.'],
-    plage: ['Le sable, ça gratte.', 'Je bronze !', 'Une glace ? Deux glaces ?'],
-    espace: ['Je flotte !', 'Houston, j’ai faim.', 'Coucou la Terre !'],
-    ville: ['Que de monde !', 'Ça sent les crêpes par ici.', 'Je fais du lèche-vitrine.']
+    happy: ['Je suis ravi.', 'La vie est belle !', 'Quelqu’un a un cornichon ?', 'Je vous aime tous. Un peu.', 'Je brille de mille couleurs !',
+      'Je pourrais danser toute la journée.', 'Aujourd’hui est un grand jour. Je ne sais pas pourquoi.', 'J’ai le ventre plein et le cœur aussi.',
+      'Vous êtes mes humains préférés.', 'Je me sens invincible !', 'Tout est parfait. Sauf l’absence de cornichons.', 'Je fredonne une chanson que j’ai inventée.',
+      'Si j’avais une queue, je la remuerais. Ah, j’en ai une.', 'On fait une photo ? Je suis à mon avantage.'],
+    ok: ['Ça va, ça va.', 'Je digère.', 'Je regarde le plafond.', 'Qu’est-ce qu’on mange ?', 'Je compte les pixels. J’en suis à 412.',
+      'Il se passe rien. J’adore.', 'Je réfléchis au sens de la vie. Et au goûter.', 'Tiens, une poussière.', 'Vous saviez que je sais siffler ? Non. Moi non plus.',
+      'Je m’ennuie un tout petit peu.', 'On pourrait repeindre le décor.', 'J’ai entendu un bruit. C’était mon ventre.', 'Quelqu’un joue avec moi ?',
+      'Je prends la pose. Au cas où.'],
+    sad: ['Personne ne m’aime…', 'Un câlin ? Même un petit.', 'Je me sens comme une chaussette seule.', 'Je vais bouder dans mon coin.',
+      'Même mon ombre m’a laissé tomber.', 'Il pleut dans mon cœur.', 'Une caresse, juste une…', 'Je crois que je vais pleurer en pixels.',
+      'Vous m’avez oublié ?', 'Je fais semblant d’aller bien.'],
+    hungry: ['J’ai tellement faim.', 'Je mangerais mon propre chapeau.', 'À manger. S’il vous plaît.', 'Mon ventre fait des bruits de dinosaure.',
+      'Je vois des croissants partout.', 'Une miette ? Une seule miette ?', 'Je pourrais manger une chaussette. Encore.', 'Le bouton NOURRIR est juste là…',
+      'Je rêve de spaghettis.', 'Mon estomac m’envoie des messages codés.'],
+    dying: ['Dites à ma mère que je l’aime…', 'La lumière… elle sent le fromage…', 'Un dernier croissant ?', 'Je vois un tunnel… avec un buffet au bout…',
+      'Je lègue mes chaussettes à… personne.', 'Vite… quelque chose… n’importe quoi…', 'C’était bien, la vie…', 'Si vous lisez ça… NOURRISSEZ-MOI.'],
+    dirty: ['Je sens un peu le fromage. Beaucoup, en fait.', 'Un bain ? Pourquoi pas…', 'Les mouches m’adorent.', 'Je crois que quelque chose pousse sur moi.',
+      'Même les mouches se bouchent le nez.', 'J’ai trouvé une frite dans mes écailles. Elle date.', 'Je suis une œuvre d’art… de la crasse.',
+      'Un peu de mousse, c’est trop demander ?'],
+    tired: ['*bâille*', 'Mes yeux se ferment tout seuls…', 'Quelqu’un me borde ?', 'Je dors debout. Littéralement.', 'Une berceuse, vite…',
+      'Je compte les moutons. J’en suis à trois.', 'Cinq minutes de sieste. Ou cinq heures.', 'Mes paupières pèsent une tonne.'],
+    soft: ['Je suis tout mou.', 'On joue ? Allez, on joue !', 'J’ai besoin de me dépenser !', 'Mes muscles ont fondu.', 'Je ressemble à un flan.',
+      'Une balle ! Lancez-moi une balle !', 'Je veux courir partout !', 'J’ai des fourmis dans les pattes.'],
+    sleeping: ['Zzz…', 'Zzz… cornichon… zzz…', '*ronfle doucement*', 'Zzz… encore cinq minutes… zzz…', '*marmonne quelque chose sur des pizzas*',
+      'Zzz… je vole… zzz…', '*sourit en dormant*', 'Zzz… non, pas le bain… zzz…'],
+    cold: ['Brrr… il fait froid ici.', 'Un bonnet ? Une écharpe ? Un câlin ?', 'Mes écailles gèlent.', 'Je claque des dents. J’en ai beaucoup.',
+      'Il y a une boutique avec des bonnets, non ?'],
+    montagne: ['Quelle vue !', 'Il neige, il neige !', 'Je suis bien couvert.', 'Je fais un bonhomme de neige. Il me ressemble.', 'L’air est si pur !',
+      'Une fondue ce soir ?', 'Le skieur va trop vite.'],
+    plage: ['Le sable, ça gratte.', 'Je bronze !', 'Une glace ? Deux glaces ?', 'J’ai construit un château de sable.', 'Un crabe m’a pincé. On est amis.',
+      'Les vagues font fsshhh.', 'Crème solaire, svp !'],
+    espace: ['Je flotte !', 'Houston, j’ai faim.', 'Coucou la Terre !', 'Je vois ma maison d’ici !', 'Les étoiles sont si proches.',
+      'Mes miettes flottent partout.', 'Y a des extraterrestres ? Ils ont des cornichons ?'],
+    ville: ['Que de monde !', 'Ça sent les crêpes par ici.', 'Je fais du lèche-vitrine.', 'Les pigeons me regardent bizarrement.',
+      'Tous ces klaxons !', 'Je veux un taxi.', 'Le livreur est passé sans s’arrêter.'],
+    // Moment de la journée (heure locale du visiteur)
+    morning: ['Bonjour ! Déjà le matin ?', 'Un croissant pour le petit-déjeuner ?', 'Je me suis levé du bon pied. J’en ai quatre.', 'Le soleil se lève, moi aussi.'],
+    noon: ['C’est l’heure de manger, non ?', 'Midi pile. Mon ventre le sait.', 'Une petite sieste digestive ?'],
+    evening: ['Belle soirée, hein ?', 'C’est bientôt l’heure du dîner.', 'Le ciel est tout orange.', 'Vous me racontez votre journée ?'],
+    night: ['Il est tard… vous ne dormez pas ?', 'La nuit, tout est calme.', 'Chut, les voisins dorment.', 'Je veille sur vous.', 'Les étoiles brillent ce soir.'],
+    // Selon l'espèce
+    dino: ['Rooaar ! C’était effrayant ?', 'Mes ancêtres étaient énormes.', 'Mes petits bras ne m’empêchent pas de rêver.', 'Une météorite ? Où ça ?!'],
+    phenix: ['Je renais toujours de mes cendres. Enfin, j’espère.', 'Attention, je suis un peu chaud.', 'Mes plumes brillent, non ?', 'Je crache des étincelles quand j’éternue.'],
+    renard: ['Je sais des choses… mystiques.', 'Mes queues voient l’avenir.', 'Chut, j’écoute les esprits.', 'Rusé, moi ? Jamais.'],
+    lezard: ['Je suis un lézard géant. Respectez la taille.', 'Je prends le soleil. Il n’y en a pas, mais je le prends.', 'Ma langue attrape les mouches. Toutes.', 'Je change pas de couleur. Sauf à la boutique.'],
+    meduse: ['Ne me regardez pas dans les yeux. Ou si, je plaisante.', 'Mes serpents ont faim aussi.', 'J’ai pétrifié une mouche. Oups.', 'Mes cheveux sifflent quand je suis contente.'],
+    horus: ['Je suis un dieu. Prosternez-vous. Ou nourrissez-moi.', 'Le soleil m’obéit.', 'J’ai l’œil sur tout.', 'Les pharaons me jalousent.'],
+    requin: ['Je ne mords pas. Presque pas.', 'Quelqu’un a vu l’océan ? Je l’ai perdu.', 'Mes dents repoussent. Toutes.', 'Tadam… tadam… tadam-tadam…', 'Je nage dans l’air. C’est un talent.', 'Un sushi ? Non merci, ce sont des amis.'],
+    lapin: ['Tu veux te battre ?!', 'Je fais mes squats. Respect.', 'Mes oreilles sont des armes.', 'Personne n’a dit carotte ?'],
+    // Réactions juste après une action (la sienne ou celle d'un autre joueur)
+    did_feed: ['Miam ! Encore ?', 'C’était délicieux. Je crois.', 'Merci pour le repas !', '*rot* Pardon.', 'Ça avait un goût de chaussette. J’adore.', 'Mon ventre vous remercie.'],
+    did_pet: ['Ooooh, encore !', 'Je ronronne. Je savais pas que je savais.', 'Vous êtes trop gentil.', 'Ça chatouille !', 'Je fonds…', 'Câlin de groupe ?'],
+    did_wash: ['Je sens la fraise !', 'Brr, c’était froid !', 'Tout propre. Ça va pas durer.', 'J’ai de la mousse dans les oreilles.', 'Je brille comme un sou neuf !'],
+    did_play: ['Encore ! Encore !', 'J’ai gagné ! Je crois.', 'Pfiou, quel sport !', 'Je suis un athlète de haut niveau.', 'La balle, la balle !'],
+    did_rock: ['Bonne nuit…', 'Une histoire… avec un dragon…', 'Zzz… merci…', 'Je fais de beaux rêves…'],
+    did_heal: ['Je me sens beaucoup mieux !', 'Merci docteur !', 'Ça pique, mais ça marche.', 'Je suis requinqué !', 'Je brille un peu. C’est normal ?'],
+    refused: ['Non merci, ça ira.', 'Sans façon.', 'Laissez-moi respirer !', 'Trop, c’est trop.', 'J’en ai déjà eu assez, merci.']
   };
   var phrase = { key: '', text: '', at: 0 };
   function say(key) {
@@ -2392,19 +2806,32 @@
     }
     return phrase.text;
   }
+  // Dernière action vue (la mienne ou celle d'un autre) : la créature y réagit pendant un moment
+  var reaction = { key: '', at: 0 };
+  function react(key) { reaction = { key: key, at: Date.now() }; }
+  function dayKey() {
+    var h = new Date().getHours();
+    return h >= 6 && h < 11 ? 'morning' : h >= 11 && h < 14 ? 'noon' : h >= 18 && h < 22 ? 'evening' : h >= 22 || h < 6 ? 'night' : null;
+  }
   function asleep() { return st && !st.dead && st.asleepUntil > Date.now() + offset; }
   function covered() { return st.acc && (st.acc.head === 'bonnet' || st.acc.neck === 'echarpe'); }
   function needKey() {
-    if (asleep()) return 'sleeping';
+    var reacting = Date.now() - reaction.at < 25000;
+    if (asleep()) return reacting && reaction.key === 'did_rock' ? 'did_rock' : 'sleeping';
     if (st.food < 8) return 'dying';
+    if (reacting) return reaction.key;
     if (st.food < 25) return 'hungry';
     if (st.place && st.place.key === 'montagne' && !covered()) return 'cold';
     if (st.joy < 25) return 'sad';
     if (st.clean < 25) return 'dirty';
     if (st.sleep < 25) return 'tired';
     if (st.fit < 25) return 'soft';
-    if (st.place && Math.floor(Date.now() / 25000) % 2) return st.place.key;
-    return moodOf(st) === 'happy' ? 'happy' : 'ok';
+    // Rien d'urgent : on fait tourner les sujets de conversation pour ne pas radoter
+    var mood = moodOf(st) === 'happy' ? 'happy' : 'ok', topics = [mood, speciesOf(st), mood];
+    if (st.place) topics.push(st.place.key);
+    if (dayKey()) topics.push(dayKey());
+    var k = topics[Math.floor(Date.now() / 25000) % topics.length];
+    return SAYINGS[k] ? k : mood;
   }
 
   var dlg = { full: '', speaker: '', shown: 0, acc: 0, hold: 0, n: 0 };
@@ -2521,7 +2948,7 @@
     $('name').textContent = '★ ' + st.name.toUpperCase() + ' ★';
     $('name').classList.toggle('rainbow', rainbow());
     var lvl = cre.stage < 0 ? stageOf(st) : cre.stage;
-    $('age').textContent = SPECIES[speciesOf(st)].name + ' · NIV. ' + (lvl + 1) + ' · ' + (st.dead ? 'A VÉCU ' + fmt(st.deadAt - st.born) : 'ÂGE ' + fmt(now - st.born));
+    $('age').textContent = (cre.egg > 0 ? 'ŒUF MYSTÈRE' : SPECIES[speciesOf(st)].name) + ' · NIV. ' + (lvl + 1) + ' · ' + (st.dead ? 'A VÉCU ' + fmt(st.deadAt - st.born) : 'ÂGE ' + fmt(now - st.born));
     renderXp(now);
     $('place').textContent = st.place ? 'SÉJOUR ' + PLACE_NAMES[st.place.key] + ' · ENCORE ' + fmt(Math.max(0, st.place.until - now)) : '';
     $('score').textContent = pad(st.actions);
@@ -2668,7 +3095,8 @@
     creatures: 'LES CRÉATURES QUI ONT VÉCU LE PLUS LONGTEMPS. GARDE LA TIENNE EN VIE POUR GRIMPER !',
     earned: 'LES JOUEURS QUI ONT GAGNÉ LE PLUS DE POINTS DEPUIS LEUR ARRIVÉE.',
     spent: 'LES PLUS GROS DÉPENSIERS DE LA BOUTIQUE.',
-    presence: 'LES JOUEURS QUI ONT PASSÉ LE PLUS DE TEMPS AUPRÈS DE LA BÊTE.'
+    presence: 'LES JOUEURS QUI ONT PASSÉ LE PLUS DE TEMPS AUPRÈS DE LA BÊTE.',
+    gamePts: 'LES POINTS GAGNÉS AUX MINI-JEUX. GUETTE LE BOUTON QUI CLIGNOTE !'
   };
   function openHall() { if (!st) return; hallOpen = true; $('hallm').hidden = false; Audio8.fx('blip'); loadLeaders(); renderHall(); }
   function closeHall() { hallOpen = false; $('hallm').hidden = true; }
@@ -2724,7 +3152,7 @@
       var sp = h.species && SPECIES[h.species] ? SPECIES[h.species].name : '?';
       b.textContent = h.name.toUpperCase();
       info.textContent = sp + (h.level ? ' · NIV. ' + h.level : '') + (h.actions !== null && h.actions !== undefined ? ' · ' + h.actions + ' SOINS' : '') +
-        (h.hatchedBy ? ' · ÉCLOS PAR ' + h.hatchedBy.toUpperCase() : '') + (h.deadAt ? ' · † ' + new Date(h.deadAt).toLocaleDateString('fr-FR') : '');
+        (h.hatchedBy ? ' · ÉCLOS PAR ' + h.hatchedBy.toUpperCase() : '') + (h.deadAt ? (h.morphed ? ' · MÉTAMORPHOSÉ LE ' : ' · † ') + new Date(h.deadAt).toLocaleDateString('fr-FR') : '');
       life.className = 'life'; life.textContent = fmt(h.lived);
       li.appendChild(rk); li.appendChild(b); li.appendChild(life); li.appendChild(info);
       ol.appendChild(li);
@@ -2753,9 +3181,10 @@
     if (typ === 'place' && (key === 'maison' ? !st.place : st.place && st.place.key === key)) return { label: key === 'maison' ? 'DÉJÀ CHEZ LUI' : 'EN COURS', dis: true, own: key !== 'maison' };
     if (typ === 'color' && st.color === key) return { label: 'ACTUELLE', dis: true, own: true };
     if (typ === 'acc' && st.acc[it.slot] === key) return { label: 'PORTÉ', dis: true, own: true };
+    if (typ === 'morph' && st.species === key) return { label: 'ACTUELLE', dis: true, own: true };
     if (typ === 'unacc' && !st.acc[key]) return { label: 'RIEN À RETIRER', dis: true };
     var cd = (st.buyCooldown[cat] || 0) - now;
-    if (cd > 0) return { label: 'ATTENDS ' + fmtShort(cd), dis: true };
+    if (cd > 0) return { label: 'ATTENDS ' + (cd >= 3600e3 ? fmt(cd) : fmtShort(cd)), dis: true };
     return { label: it.price + ' PTS', dis: pts < it.price };
   }
   function renderShop(full) {
@@ -2766,6 +3195,7 @@
     var now = Date.now() + offset, info;
     if (shopCat === 'lieux') info = st.place ? 'EN SÉJOUR : ' + PLACE_NAMES[st.place.key] + ', ENCORE ' + fmt(Math.max(0, st.place.until - now)) + '. ENSUITE IL RENTRE CHEZ LUI.' : 'IL EST CHEZ LUI. UN SÉJOUR CHANGE LE DÉCOR ET LA VITESSE À LAQUELLE SES JAUGES BAISSENT.';
     else if (shopCat === 'couleurs') info = 'COULEUR ACTUELLE : ' + st.color.toUpperCase() + '.';
+    else if (shopCat === 'metamorphose') info = 'ESPÈCE ACTUELLE : ' + SPECIES[speciesOf(st)].name + ', NIV. ' + (stageOf(st) + 1) + '. L’ŒUF MYSTÈRE DONNE UNE AUTRE ESPÈCE AU HASARD, AU NIVEAU 1 : SA VIE ACTUELLE ENTRE AU PANTHÉON. UN SEUL TOUTES LES 6 H.';
     else {
       var worn = Object.keys(st.acc).map(function (k) { return st.acc[k].toUpperCase(); });
       info = worn.length ? 'IL PORTE : ' + worn.join(', ') + '.' : 'IL NE PORTE RIEN.';
@@ -2864,10 +3294,11 @@
 
   // Effets visibles quand un autre visiteur agit (déduits des jauges qui remontent)
   function otherAction(data, prev) {
-    if (data.food > prev.food + 5) spawnPizza(1);
-    else if (data.clean > prev.clean + 5) spawnBubbles(6);
-    else if (data.fit > prev.fit + 5) jump(120);
-    else if (data.sleep > prev.sleep + 5) spawnZ(2);
+    if (data.food > prev.food + 5) { spawnPizza(1); react('did_feed'); }
+    else if (data.clean > prev.clean + 5) { spawnBubbles(6); react('did_wash'); }
+    else if (data.fit > prev.fit + 5) { jump(120); react('did_play'); }
+    else if (data.sleep > prev.sleep + 5) { spawnZ(2); react('did_rock'); }
+    else if (data.joy > prev.joy + 5) { spawnHearts(3, 1); react('did_pet'); }
     else spawnHearts(3, 1);
     Audio8.fx('other');
   }
@@ -2890,12 +3321,13 @@
       }
     }
     if (prev && !data.dead && prev.name === data.name && placeOf(prev) !== placeOf(data)) startTravel(placeOf(data));
+    if (prev && !data.dead && data.born > prev.born && !data.actions) startEgg(data, !prev.dead); // naissance : éclosion ou œuf mystère
     if (prev && !prev.dead && data.dead) {
       Audio8.fx('die'); shake = 1; flash('red');
       setDialog('SYSTÈME', data.name + ' est mort de faim. GAME OVER.', 6000, true);
     } else if (!mine && prev && !data.dead && prev.name === data.name) {
       if (data.actions > prev.actions) otherAction(data, prev);
-      if (data.events[0] && (!prev.events[0] || data.events[0].ts !== prev.events[0].ts || data.events[0].text !== prev.events[0].text)) setDialog('INFO', data.events[0].text, 5000, true);
+      if (!(cre.egg > 0) && data.events[0] && (!prev.events[0] || data.events[0].ts !== prev.events[0].ts || data.events[0].text !== prev.events[0].text)) setDialog('INFO', data.events[0].text, 5000, true);
     }
     pickMusic(); renderHud();
   }
@@ -2937,7 +3369,7 @@
   };
 
   function act(kind) {
-    if (!started || !st || shopOpen || nickOpen || achOpen || hallOpen) return;
+    if (!started || !st || shopOpen || nickOpen || achOpen || hallOpen || (game && game.live)) return;
     if (kind === 'hatch' ? !st.dead : st.dead) return;
     press(kind);
     var left = lastAct + COOLDOWN - Date.now();
@@ -2953,11 +3385,15 @@
       }
       if (r.code === 200) gaEvent(kind === 'hatch' ? 'hatch' : 'care_action', kind === 'hatch' ? { species: r.body.species } : { action: kind });
       if (r.code === 200 && kind === 'hatch') {
-        Audio8.fx('hatch'); flash(); spawnSparks(cre.x, groundY - 15 * C, 40); jump(170);
-        showReady();
+        showReady(); // l'œuf et l'éclosion sont joués par apply() (naissance détectée)
       }
       if (r.code === 200 && r.body.gained) parts.push({ k: 'txt', text: '+' + r.body.gained + ' PTS', col: '#ffe25e', x: cre.x + 20 * C, y: mouth.top, vx: 0, vy: -18, gr: 0, life: 1.6 });
       if (r.code === 200 && r.body.events && r.body.events[0]) setDialog('INFO', r.body.events[0].text, 6000, true);
+      // Aucun événement signé de moi à cet instant = la créature a refusé (jauge déjà pleine)
+      if (r.code === 200 && kind !== 'hatch' && r.body.events && r.body.events[0]) {
+        var ts0 = r.body.events[0].ts;
+        react(r.body.events.some(function (e) { return e.mine && e.ts === ts0; }) ? 'did_' + kind : 'refused');
+      }
       apply(r.body, true);
     }).catch(function () { setDialog('SYSTÈME', 'Erreur réseau.', 3000, true); });
   }
@@ -2979,6 +3415,7 @@
     }
     if (op.op === 'bonus') { devOp({ op: 'cooldowns' }); setTimeout(spawnBonus, 300); return; }
     if (op.op === 'emote') { cre.emote = null; startEmote(op.k); return; }
+    if (op.op === 'game') { gameOffer = null; gameNext = 0; if (op.kind) { var ks0 = op.kind; setTimeout(function () { if (gameOffer) gameOffer.kind = ks0; }, 50); } toggleDev(); return; }
     if (op.op === 'tease') { spawnTease(); tease.x = tease.dir > 0 ? W * 0.1 : W * 0.9; return; }
     if (op.op === 'cooldowns') { lastAct = 0; try { localStorage.removeItem('lastAct'); } catch (e) {} }
     call('POST', '/api/dev', op).then(function (r) {
@@ -3040,8 +3477,14 @@
   $('title').addEventListener('click', start);
   cv.addEventListener('pointerdown', function (e) {
     if (!started || shopOpen) return;
+    if (game && game.live) { var gr = cv.getBoundingClientRect(); gameTap((e.clientX - gr.left) / S, (e.clientY - gr.top) / S); return; }
     if (bonusHit(e.clientX, e.clientY)) claimBonus(); else tapAt(e.clientX, e.clientY);
   });
+  cv.addEventListener('pointermove', function (e) {
+    if (game && game.live && game.kind === 'catch') { game.keys = 0; game.px = (e.clientX - cv.getBoundingClientRect().left) / S; }
+  });
+  window.addEventListener('keyup', function (e) { if (game && game.kind === 'catch' && /arrow|^[qad]$/.test(e.key.toLowerCase())) game.keys = 0; });
+  $('gameBtn').onclick = function (e) { e.currentTarget.blur(); acceptGame(); };
   cv.addEventListener('pointermove', function (e) { cv.style.cursor = bonusHit(e.clientX, e.clientY) ? 'pointer' : ''; });
   ACTS.forEach(function (a) { $(a[0]).onclick = function () { act(a[0]); }; });
   $('hatch').onclick = function () { act('hatch'); };
@@ -3090,6 +3533,8 @@
     if (achOpen) { if (k === 'escape' || k === 'h') closeAch(); return; }
     if (hallOpen) { if (k === 'escape' || k === 't') closeHall(); return; }
     if (nickOpen) { if (k === 'escape') closeNick(); else if (k === 'enter') { e.preventDefault(); saveNick(); } return; }
+    if (game && game.live) { gameKey(k, e); return; }
+    if (gameOffer && k === 'j') { acceptGame(); return; }
     var n = '123456'.indexOf(k);
     if (n >= 0) act(ACTS[n][0]);
     else if (k === 'arrowleft' || k === 'a') act('feed');
