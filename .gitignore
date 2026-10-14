@@ -6,6 +6,10 @@ data-dev/
 node_modules/
 *.zip
 *.log
+# Visuels et lanceur pour la page itch.io (préparés à part, pas servis par le jeu)
+itch-assets/
+# Index de recherche dans le code (CodeGraph)
+.codegraph/
 
 # Environnement local
 .env

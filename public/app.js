@@ -466,7 +466,8 @@
     var bt = $('bottom').getBoundingClientRect().top, ht = Math.max($('hud').getBoundingClientRect().bottom, $('mid').getBoundingClientRect().bottom); // #mid est hors du flux sur grand écran
     groundY = Math.max(40, Math.min(H - 8, Math.floor(bt / S) - 18));
     hudBottom = Math.ceil(ht / S);
-    gameTop = Math.ceil(Math.max(ht, $('sys').getBoundingClientRect().bottom) / S); // les mini-jeux commencent sous le HUD et le menu
+    // Les mini-jeux commencent sous le HUD ; le menu de gauche est masqué pendant une partie (sinon il réduit la zone de jeu)
+    gameTop = Math.ceil((document.body.classList.contains('gaming') ? ht : Math.max(ht, $('sys').getBoundingClientRect().bottom)) / S);
     $('logbox').style.top = Math.ceil($('hud').getBoundingClientRect().bottom + 14) + 'px'; // le journal commence toujours sous le HUD, quelle que soit sa hauteur
     // Sur grand écran, le journal est fixé à droite : la créature reste dans l'espace libre à sa gauche
     var lb = $('logbox').getBoundingClientRect(), lbLeft = Math.floor((lb.left - 12) / S);
@@ -2352,7 +2353,7 @@
     if (!best) { game.combo = 0; gameFloat('RATÉ', '#ff4f6f', game.tx, game.lane - 12); Audio8.fx('deny'); return; }
     best.hit = true; game.combo++;
     var perfect = Math.abs(best.t - pt) < 0.07, n2 = perfect ? 2 : 1;
-    if (game.combo % 10 === 0) { n2 += 2; gameFloat('COMBO ' + game.combo + ' !', '#ffd23f', playCx, game.lane - 24); }
+    if (game.combo % 10 === 0) { n2 += 2; gameFloat('COMBO ' + game.combo + ' !', '#ffd23f', playCx, game.lane + 30); }
     game.score += n2;
     gameFloat(perfect ? 'PARFAIT' : 'BIEN', perfect ? '#5ef2ff' : '#7dff7a', game.tx, game.lane - 12);
     spawnSparks(game.tx, game.lane, perfect ? 10 : 5, perfect ? '#5ef2ff' : '#7dff7a');

@@ -222,6 +222,7 @@
   #ready.on { display:block; animation:blink .25s steps(1) infinite; }
   #gameBtn { position:fixed; left:50%; top:34%; transform:translateX(-50%); z-index:6; padding:12px 16px; font-size:clamp(11px, 3.4vw, 14px); white-space:nowrap; color:#14082a; background:#ffe25e; border:0; box-shadow:0 0 0 3px #14082a, 0 0 0 6px #ff5ec8, 6px 6px 0 6px #000; cursor:pointer; animation:gamePulse .5s steps(2) infinite; text-align:center; }
   body.gaming #logbox, body.gaming #ticker { display:none; }
+  body.gaming #sys { visibility:hidden; }
   #gameBtn small { display:block; margin-top:6px; font-size:9px; }
   @keyframes gamePulse { 50% { background:#5ef2ff; transform:translateX(-50%) scale(1.06); } }
   #title { position:fixed; inset:0; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:28px; padding:20px; text-align:center; background:radial-gradient(ellipse at center, rgba(20,10,60,.55), rgba(0,0,0,.85)); cursor:pointer; }
