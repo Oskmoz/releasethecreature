@@ -327,6 +327,7 @@
       },
       sneeze: function (t) { tone(sfx, 'sine', hz(72), t, 0.35, 0.12, { slide: hz(79), decay: 1 }); noise(sfx, t + 0.42, 0.18, 0.35, 'highpass', 1800); tone(sfx, 0.5, hz(84), t + 0.42, 0.08, 0.12, { slide: hz(70) }); },
       grunt: function (t) { tone(sfx, 0.5, hz(47), t, 0.11, 0.16, { slide: hz(42), decay: 1 }); noise(sfx, t, 0.08, 0.08, 'lowpass', 700); },
+      dash: function (t) { noise(sfx, t, 0.35, 0.22, 'bandpass', 1200); tone(sfx, 'triangle', hz(60), t, 0.3, 0.12, { slide: hz(84), decay: 1 }); },
       page: function (t) { noise(sfx, t, 0.06, 0.12, 'highpass', 3500); noise(sfx, t + 0.07, 0.05, 0.08, 'highpass', 5000); },
       roar: function (t) { noise(sfx, t, 0.9, 0.35, 'lowpass', 700); tone(sfx, 'sawtooth', hz(40), t, 0.9, 0.1, { slide: hz(31), decay: 0.9 }); tone(sfx, 'triangle', hz(28), t, 0.9, 0.3, { slide: hz(24), decay: 0.9 }); },
       flex: function (t) { tone(sfx, 0.25, hz(79), t, 0.06, 0.15); tone(sfx, 0.25, hz(86), t + 0.06, 0.06, 0.15); noise(sfx, t + 0.12, 0.25, 0.08, 'highpass', 6000); },
@@ -1753,6 +1754,7 @@
       else if (em.k === 'squat') bob = Math.floor(emt / 0.4) % 2 ? 2 : 0;          // le haut du corps descend : flexion
       else if (em.k === 'dance') { bob = Math.floor(T * 5) % 2; pose = Math.floor(T * 5) % 2 ? 'w1' : 'w2'; kind = 'happy'; }
       else if (em.k === 'read') bob = 0;
+      else if (em.k === 'sprint') { var sf = Math.floor(cre.walkT * 8) % 4; pose = sf === 0 ? 'w1' : sf === 2 ? 'w2' : 'idle'; bob = sf % 2; }
       else if (em.k === 'flex') { bob = Math.floor(T * 8) % 2; kind = 'happy'; }
       else if (em.k === 'roar') bob = Math.floor(T * 16) % 2;
       else if (em.k === 'sneeze' && emt < 0.45) kind = 'sleep'; // yeux plissés juste avant l'éternuement
@@ -1773,6 +1775,20 @@
     var legend = si === 9 && kind !== 'dead' && !evoWhite;
     if (speciesOf(st) === 'lapin' && si >= 5 && kind !== 'dead' && !evoWhite) drawAura(grid, sd, si === 9 ? '255,79,200' : '255,50,80');
     else if (legend) drawAura(grid, sd);
+    if (em && em.k === 'sprint') { // effet de vitesse : traits de vent et images rémanentes derrière la créature
+      var ox0 = ox, back = flip ? 1 : -1, gx, gy;
+      for (gy = 0; gy < 7; gy++) {
+        var ly = oy + Math.round(sd.gh * C * (0.15 + gy * 0.12)), seedL = (Math.floor(T * 20) + gy * 7) % 5;
+        var len = (18 + seedL * 9) * C, lx = cre.x + back * (sd.gw * C * 0.35 + 4 * C + seedL * 3 * C);
+        g.fillStyle = gy % 2 ? 'rgba(255,255,255,.7)' : 'rgba(94,242,255,.6)';
+        g.fillRect(Math.round(back > 0 ? lx : lx - len), ly, len, C);
+      }
+      [[16, 0.18], [8, 0.35]].forEach(function (gh) {
+        ox = ox0 + back * gh[0] * C; g.globalAlpha = gh[1];
+        for (gy = 0; gy < sd.gh; gy++) for (gx = 0; gx < sd.gw; gx++) { var gc = grid[gy][gx]; if (gc !== '.' && gc !== 'K') D(gx, gy, cols[gc]); }
+      });
+      ox = ox0; g.globalAlpha = 1;
+    }
     if (kind === 'dead') g.globalAlpha = 0.85;
     for (var y = 0; y < sd.gh; y++) for (var x = 0; x < sd.gw; x++) {
       var ch = grid[y][x]; if (ch === '.') continue;
@@ -1784,6 +1800,14 @@
       if (sd.nose) D(sd.nose[0], sd.nose[1], K);
       if (st && !st.dead && st.clean < 35) drawDirt(grid, sd);
       if (st && st.acc) drawAccessories(sd);
+      if (em && em.k === 'squat') { // barre d'haltère posée sur les épaules (elle descend et remonte avec le haut du corps)
+        var hy = sd.neck[1] - 2, hx0 = sd.neck[0] - 11, hx1 = sd.neck[0] + 9, yy;
+        for (var hx = hx0 - 1; hx <= hx1 + 1; hx++) { D(hx, hy - 1, K); D(hx, hy, '#f0f0ff'); D(hx, hy + 1, '#a8a8c0'); D(hx, hy + 2, K); }
+        [hx0 - 4, hx1 + 2].forEach(function (px0) { // gros disques rouges aux deux bouts
+          for (yy = hy - 5; yy <= hy + 6; yy++) { D(px0 - 1, yy, K); D(px0, yy, '#ff7a7a'); D(px0 + 1, yy, '#e43b44'); D(px0 + 2, yy, '#a01828'); D(px0 + 3, yy, K); }
+          for (var xx = px0 - 1; xx <= px0 + 3; xx++) { D(xx, hy - 6, K); D(xx, hy + 7, K); }
+        });
+      }
       if (em && em.k === 'read') { // livre ouvert tenu devant la gueule
         var bk = { W: '#fff8e8', L: '#a8a0c8', K: '#3a2410', B: '#8a2a2a' }, bx = sd.mouth[0] - 2, by = sd.mouth[2] + 2;
         for (var ry = 0; ry < BOOK.length; ry++) for (var rx = 0; rx < BOOK[ry].length; rx++) { var bc = BOOK[ry][rx]; if (bc !== '.') D(bx + rx, by + ry, bk[bc]); }
@@ -1802,12 +1826,14 @@
 
   // ---------- Petites animations au hasard (quand la créature n'a rien d'autre à faire) ----------
   // Chaque espèce peut tout faire ; le rire et les gestes « de costaud » dépendent du niveau.
-  var EMOTE_DUR = { jump: 0.9, laugh: 1.4, sneeze: 1.3, dance: 3.2, read: 5.5, squat: 3.4, flex: 1.8, roar: 1.6 };
+  var EMOTE_DUR = { sprint: 8, jump: 0.9, laugh: 1.4, sneeze: 1.3, dance: 3.2, read: 5.5, squat: 3.4, flex: 1.8, roar: 1.6 };
   var BOOK = ['.WWWKWWW.', 'WLLLKLLLW', 'WWLLKLLWW', 'WLLLKLLLW', 'WWWWKWWWW', '.BBBBBBB.'];
   var NOTE = ['..KK', '..K.', '..K.', 'KKK.', 'KK..'];
   function pickEmote() {
     var lv = Math.max(0, cre.stage), pool = ['jump', 'jump', 'laugh', 'laugh', 'sneeze', 'dance', 'read'];
-    if (lv >= 3) pool.push('squat', 'squat');
+    var fours = { lezard: 1, renard: 1 }[speciesOf(st)] || (speciesOf(st) === 'lapin' && lv < 4); // à quatre pattes : pas de squats
+    if (lv >= 3 && !fours) pool.push('squat', 'squat');
+    if (lv >= 2 && fours) pool.push('sprint', 'sprint'); // les quadrupèdes font un sprint à la place
     if (lv >= 5) pool.push('flex');
     if (lv >= 6) pool.push('roar');
     if (speciesOf(st) === 'lapin' && lv >= 4) pool.push('squat', 'flex', 'flex');
@@ -1823,6 +1849,7 @@
       floatText(['HIHI !', 'HA HA HA !', 'MWAHAHAHA !'][tier - 1], ['#ffd2f0', '#ffe25e', '#ff4f6f'][tier - 1]);
       if (tier === 3) shake = 0.5;
     } else if (k === 'sneeze') Audio8.fx('sneeze');
+    else if (k === 'sprint') { cre.dir = cre.x < W / 2 ? -1 : 1; Audio8.fx('dash'); floatText('ZOOM !', '#5ef2ff'); } // part vers le bord le plus proche
     else if (k === 'read') { Audio8.fx('page'); floatText('…', '#d8d4ff'); }
     else if (k === 'flex') { Audio8.fx('flex'); floatText('FLEX !', '#ffd23f'); spawnSparks(cre.x, mouth.y + 8 * C, 14, '#ffd23f'); }
     else if (k === 'roar') { Audio8.fx('roar'); floatText('ROAAAR !', '#ff8a1f'); shake = 0.6; }
@@ -1830,13 +1857,23 @@
   function updateEmote(dt) {
     var e = cre.emote; if (!e) return;
     var et = T - e.t0;
+    if (e.k === 'sprint') {
+      // Sprint : sort de l'écran d'un côté, réapparaît de l'autre et freine au milieu
+      var sp = 150 + Math.min(1, et * 2) * 60;
+      cre.x += cre.dir * sp * dt; cre.walkT += dt * 2.5;
+      if (Math.random() < dt * 30) parts.push({ k: 'spark', x: cre.x - cre.dir * 10 * C, y: groundY - 2 - Math.random() * 3, vx: -cre.dir * (20 + Math.random() * 30), vy: -10 - Math.random() * 15, gr: 60, life: 0.4, col: '#d8c8a8' });
+      if (!e.wrapped && (cre.x > W + 50 || cre.x < -50)) { e.wrapped = true; cre.x = cre.dir > 0 ? -50 : W + 50; Audio8.fx('dash'); }
+      if (e.wrapped && Math.abs(cre.x - W / 2) < 6) { cre.emote = null; cre.tx = cre.x; cre.wait = 1.5; spawnSparks(cre.x, groundY - 2, 10, '#d8c8a8'); }
+      else if (et >= e.dur) { cre.emote = null; cre.x = W / 2; cre.tx = cre.x; }
+      return;
+    }
     if (e.k === 'sneeze' && !e.done && et > 0.45) { e.done = true; floatText('ATCHOUM !', '#9fffb0'); spawnBubbles(5); jump(60); }
     else if (e.k === 'dance') {
       if (Math.floor(et / 0.4) !== e.beat) { e.beat = Math.floor(et / 0.4); cre.dir = -cre.dir; }
       if (Math.random() < dt * 3) parts.push({ k: 'note', x: cre.x + (Math.random() - 0.5) * 20 * C, y: mouth.top + 6 * C, vx: (Math.random() - 0.5) * 20, vy: -25, gr: 0, life: 1.4, col: ['#ff9ad0', '#5ef2ff', '#ffe25e', '#7dff7a'][Math.random() * 4 | 0] });
     } else if (e.k === 'squat') {
       var rep = Math.floor(et / 0.8);
-      if (rep !== e.beat && rep < 4) { e.beat = rep; if (rep > 0) { Audio8.fx('grunt'); floatText(rep + ' !', '#ffffff'); } }
+      if (rep !== e.beat && rep < 4) { e.beat = rep; if (rep > 0) { Audio8.fx('grunt'); floatText('SQUAT ' + rep + ' !', '#ffffff'); } }
     } else if (e.k === 'read' && Math.floor(et / 1.6) !== e.beat) { e.beat = Math.floor(et / 1.6); Audio8.fx('page'); }
     if (et >= e.dur) cre.emote = null;
   }
@@ -2166,7 +2203,7 @@
         }
       }
     }
-    cre.x = Math.max(24 * C, Math.min(W - 24 * C, cre.x));
+    if (!(cre.emote && cre.emote.k === 'sprint')) cre.x = Math.max(24 * C, Math.min(W - 24 * C, cre.x));
   }
   function update(dt) {
     T += dt;
