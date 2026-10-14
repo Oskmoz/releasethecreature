@@ -3500,6 +3500,7 @@
   // Logo animé, lettre par lettre
   (function () {
     var logo = $('logo'), i = 0;
+    logo.textContent = ''; // le texte brut du <h1> (pour les moteurs de recherche) est remplacé par les lettres animées
     'LA CRÉATURE'.split(' ').forEach(function (word) {
       var w = document.createElement('span'); w.className = 'w';
       word.split('').forEach(function (ch) {

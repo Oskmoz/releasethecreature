@@ -22,6 +22,11 @@ if (process.env.ADMIN_TOKEN && !ADMIN_TOKEN) console.warn('ADMIN_TOKEN ignoré :
 // Google Analytics : désactivé tant que GA_ID n'est pas défini (format G-XXXXXXX vérifié).
 // Les domaines de Google ne sont autorisés dans la CSP que dans ce cas, et le client ne charge
 // le script qu'après le consentement du visiteur (bandeau cookies).
+// Adresse publique du site (balises canonical/partage, robots.txt, sitemap) : SITE_URL, sinon https://DOMAIN
+const SITE_URL = (() => {
+  const u = process.env.SITE_URL || (process.env.DOMAIN ? 'https://' + process.env.DOMAIN : '');
+  return /^https?:\/\/[a-z0-9.-]+(:\d+)?$/i.test(u) ? u : '';
+})();
 const GA_ID = /^G-[A-Z0-9]{4,15}$/.test(process.env.GA_ID || '') ? process.env.GA_ID : null;
 if (process.env.GA_ID && !GA_ID) console.warn('GA_ID ignoré : format attendu G-XXXXXXXXXX');
 
@@ -932,7 +937,13 @@ function safe(res, fn) {
   }
 }
 
-const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.svg': 'image/svg+xml', '.ico': 'image/x-icon' };
+const MIME = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css', '.svg': 'image/svg+xml', '.ico': 'image/x-icon', '.jpg': 'image/jpeg', '.png': 'image/png' };
+// Référencement : robots.txt et sitemap générés avec l'adresse publique
+const STARTED = new Date().toISOString().slice(0, 10);
+const SEO_FILES = {
+  '/robots.txt': () => ['text/plain; charset=utf-8', 'User-agent: *\nAllow: /\nDisallow: /api/\n' + (SITE_URL ? 'Sitemap: ' + SITE_URL + '/sitemap.xml\n' : '')],
+  '/sitemap.xml': () => ['application/xml; charset=utf-8', '<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n  <url><loc>' + (SITE_URL || '') + '/</loc><lastmod>' + STARTED + '</lastmod><changefreq>daily</changefreq><priority>1.0</priority></url>\n</urlset>\n']
+};
 
 const server = http.createServer((req, res) => safe(res, () => route(req, res)));
 // Garde-fous contre les connexions lentes ou abusives
@@ -974,12 +985,19 @@ function route(req, res) {
     return send(res, 404, { error: 'not_found' });
   }
   if (req.method === 'GET' && url === '/healthz') { res.writeHead(200); return res.end('ok'); }
+  if ((req.method === 'GET' || req.method === 'HEAD') && SEO_FILES[url]) {
+    const [type, body] = SEO_FILES[url]();
+    res.writeHead(200, { ...secHeaders(req), 'Content-Type': type, 'Cache-Control': 'public, max-age=3600' });
+    return res.end(req.method === 'HEAD' ? undefined : body);
+  }
   if (req.method === 'GET' || req.method === 'HEAD') {
     const rel = url === '/' ? 'index.html' : url.slice(1);
     const file = path.join(PUBLIC_DIR, path.normalize(rel));
     if (file.startsWith(PUBLIC_DIR + path.sep) && fs.existsSync(file) && fs.statSync(file).isFile()) {
       res.writeHead(200, { ...secHeaders(req), 'Content-Type': MIME[path.extname(file)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
       if (req.method === 'HEAD') return res.end();
+      // La page d'accueil reçoit l'adresse publique du site dans ses balises (canonical, partage, données structurées)
+      if (rel === 'index.html') return res.end(fs.readFileSync(file, 'utf8').replace(/%SITE%/g, SITE_URL));
       return fs.createReadStream(file).pipe(res);
     }
   }

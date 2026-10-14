@@ -24,6 +24,8 @@ services:
       - GA_ID=${GA_ID:-}
       # Admin (facultatif) : outils réservés à qui connaît ce jeton
       - ADMIN_TOKEN=${ADMIN_TOKEN:-}
+      # Adresse publique pour le référencement (balises de partage, robots.txt, sitemap.xml)
+      - DOMAIN=${DOMAIN}
     volumes:
       # Dossier de l'hôte (./data par défaut) : facile à consulter et à sauvegarder, survit à tout
       # (redémarrage, rebuild, docker compose down -v). Doit appartenir à l'UID 1000 (utilisateur node).
