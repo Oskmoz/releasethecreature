@@ -329,6 +329,10 @@
       grunt: function (t) { tone(sfx, 0.5, hz(47), t, 0.11, 0.16, { slide: hz(42), decay: 1 }); noise(sfx, t, 0.08, 0.08, 'lowpass', 700); },
       dash: function (t) { noise(sfx, t, 0.35, 0.22, 'bandpass', 1200); tone(sfx, 'triangle', hz(60), t, 0.3, 0.12, { slide: hz(84), decay: 1 }); },
       page: function (t) { noise(sfx, t, 0.06, 0.12, 'highpass', 3500); noise(sfx, t + 0.07, 0.05, 0.08, 'highpass', 5000); },
+      thunder: function (t) { noise(sfx, t, 0.12, 0.4, 'highpass', 2500); noise(sfx, t + 0.08, 1.4, 0.35, 'lowpass', 300); tone(sfx, 'triangle', hz(28), t + 0.08, 1.2, 0.25, { slide: hz(22), decay: 0.8 }); },
+      boom: function (t) { noise(sfx, t, 0.55, 0.45, 'lowpass', 380); tone(sfx, 'triangle', hz(30), t, 0.45, 0.45, { slide: hz(20), decay: 0.9 }); },
+      charge: function (t) { tone(sfx, 'sawtooth', hz(40), t, 2.3, 0.05, { slide: hz(76), decay: 1 }); tone(sfx, 'triangle', hz(52), t, 2.3, 0.14, { slide: hz(88), decay: 1 }); noise(sfx, t + 1.6, 0.7, 0.06, 'bandpass', 2500); },
+      burst: function (t) { noise(sfx, t, 0.7, 0.4, 'lowpass', 2500); tone(sfx, 0.5, hz(76), t, 0.5, 0.18, { slide: hz(43), decay: 0.9 }); tone(sfx, 'triangle', hz(31), t, 0.6, 0.35, { slide: hz(24) }); },
       roar: function (t) { noise(sfx, t, 0.9, 0.35, 'lowpass', 700); tone(sfx, 'sawtooth', hz(40), t, 0.9, 0.1, { slide: hz(31), decay: 0.9 }); tone(sfx, 'triangle', hz(28), t, 0.9, 0.3, { slide: hz(24), decay: 0.9 }); },
       flex: function (t) { tone(sfx, 0.25, hz(79), t, 0.06, 0.15); tone(sfx, 0.25, hz(86), t + 0.06, 0.06, 0.15); noise(sfx, t + 0.12, 0.25, 0.08, 'highpass', 6000); },
       heal: function (t) { [79, 84, 88, 91, 96].forEach(function (m, i) { tone(sfx, 'triangle', hz(m), t + i * 0.07, 0.12, 0.3); }); tone(sfx, 0.125, hz(103), t + 0.35, 0.4, 0.14, { vib: true }); }
@@ -456,10 +460,23 @@
   var rain = []; for (i = 0; i < 70; i++) rain.push({ x: rnd(), y: rnd() });
   var meteor = { t: 3, x: 0, y: 0 };
 
-  function resize() {
+  // Dézoom : à partir du niveau 11, le monde est affiché avec des pixels plus petits (par demi-pas, net sur les écrans
+  // haute densité) et la créature est dessinée plus grande : elle paraît de plus en plus immense dans son décor.
+  // Le niveau pris en compte est l'ancien pendant une évolution : le dézoom tombe pile au flash final.
+  var Sbase = 3, textK = 1;
+  function zoomOf(i) { return i < 10 ? 1 : 1 - 0.5 * (i - 9) / 40; }
+  function targetS() {
     var iw = Math.max(64, window.innerWidth), ih = Math.max(64, window.innerHeight);
-    S = Math.max(2, Math.round(Math.min(ih / 260, iw / 240)));
+    Sbase = Math.max(2, Math.round(Math.min(ih / 260, iw / 240)));
+    var i = cre.evo > 0 ? cre.evoFrom : cre.stage;
+    var z = document.body.classList.contains('gaming') ? 1 : zoomOf(Math.max(0, i));
+    return Math.max(1, Math.round(Sbase * z * 2) / 2);
+  }
+  function resize() {
+    var iw = Math.max(64, window.innerWidth), ih = Math.max(64, window.innerHeight), oldW = W;
+    S = targetS(); textK = Sbase / S;
     W = Math.ceil(iw / S); H = Math.ceil(ih / S);
+    if (cre.x && oldW && oldW !== W) { cre.x *= W / oldW; cre.tx *= W / oldW; } // garde la créature au même endroit de l'écran
     cv.width = W; cv.height = H;
     cv.style.width = W * S + 'px'; cv.style.height = H * S + 'px';
     g.imageSmoothingEnabled = false;
@@ -1492,16 +1509,18 @@
     }
   };
   // Génère la définition du sprite d'une espèce à un niveau : formes mises à l'échelle + points d'ancrage
-  function spriteDef(sp, L) {
+  function spriteDef(sp, L, mul) {
     var S = SPECIES[sp];
     if (S.byLevel) S = Object.assign({}, S, S.byLevel(L)); // anatomie qui change selon le niveau (le lapin se lève)
-    var t = (L - 1) / 9, k = S.kMin + (S.kMax - S.kMin) * t, hk = S.headMax + (1 - S.headMax) * t;
+    var Lf = Math.min(L, 10), grow = (L > 10 ? 1 + 0.6 * (L - 10) / 40 : 1) * (mul || 1); // au-delà du niveau 10 : mêmes formes, en plus grand
+    var t = (Lf - 1) / 9, k = S.kMin + (S.kMax - S.kMin) * t, hk = S.headMax + (1 - S.headMax) * t;
     function tp(q, head) {
       var x = q[0], y = q[1];
       if (head) { x = S.head[0] + (x - S.head[0]) * hk; y = S.head[1] + (y - S.head[1]) * hk; }
       return [(x - S.foot[0]) * k, (y - S.foot[1]) * k];
     }
-    var parts = S.parts(L).map(function (p) {
+    k *= grow;
+    var parts = S.parts(Lf).map(function (p) {
       var o = { c: p.c, ol: p.ol, tag: p.tag };
       if (p.e) { var c = tp(p.e, p.head), f = k * (p.head ? hk : 1); o.e = [c[0], c[1], Math.max(0.8, p.e[2] * f), Math.max(0.8, p.e[3] * f)]; }
       else {
@@ -1530,22 +1549,29 @@
     var eyeC = A(S.eye, true), m0 = A([S.mouth[0], S.mouth[2]], true), m1 = A([S.mouth[1], S.mouth[2]], true);
     if (m1[0] - m0[0] < 3) m1[0] = m0[0] + 3;
     return {
-      gw: Math.ceil(maxX + ox) + 3, gh: Math.ceil(maxY + oy) + 2, parts: parts, flame: S.flame && L >= 10,
+      gw: Math.ceil(maxX + ox) + 3, gh: Math.ceil(maxY + oy) + 2, parts: parts, flame: S.flame && L >= 10, L: L,
       eye: [eyeC[0] - 2, eyeC[1] - 2], mouth: [m0[0], m1[0], m0[1]], nose: A(S.nose, true),
       halo: A(S.halo, true), top: A(S.top, true), neck: A(S.neck, false), tail: A(S.tail, false),
       hip: Math.round(tp([0, S.hip], false)[1] + oy)
     };
   }
 
-  // 10 niveaux selon l'âge. Les 4 paliers (bébé → légende) pilotent le décor et la musique.
-  var LEVELS = [0, 0.25, 0.75, 1.5, 3, 6, 12, 24, 48, 96].map(function (h) { return h * 3600e3; });
+  // 50 niveaux selon l'âge : les 10 premiers jusqu'à 4 jours, puis un niveau toutes les 12 h (niveau 50 à 24 jours).
+  // Les 4 paliers (bébé → légende) pilotent le décor et la musique ; au-delà, des rangs de prestige.
+  var LEVEL_H = [0, 0.25, 0.75, 1.5, 3, 6, 12, 24, 48, 96];
+  for (var lh = 11; lh <= 50; lh++) LEVEL_H.push(96 + (lh - 10) * 12);
+  var LEVELS = LEVEL_H.map(function (h) { return h * 3600e3; });
+  var MAX_STAGE = LEVELS.length - 1;
   var TIERS = [{ k: 'bebe', n: 'BÉBÉ' }, { k: 'junior', n: 'JUNIOR' }, { k: 'adulte', n: 'ADULTE' }, { k: 'legende', n: 'LÉGENDE' }];
   var TIER_OF = [0, 0, 1, 1, 1, 2, 2, 2, 3, 3];
-  function tierOf(i) { return TIER_OF[Math.max(0, i)]; }
-  // ?stage=1..10 force l'affichage d'un niveau (mode dev uniquement)
+  function tierOf(i) { return TIER_OF[Math.min(9, Math.max(0, i))]; }
+  // Rangs de prestige après la légende (index de niveau : 19 = niveau 20)
+  var RANKS = [[49, 'ÉTERNEL'], [39, 'DIVIN'], [29, 'TITAN'], [19, 'MYTHIQUE'], [8, 'LÉGENDE']];
+  function rankOf(i) { for (var r = 0; r < RANKS.length; r++) if (i >= RANKS[r][0]) return RANKS[r][1]; return TIERS[tierOf(i)].n; }
+  // ?stage=1..50 force l'affichage d'un niveau (mode dev uniquement)
   var forceStage = (function () {
     var m = /[?&]stage=(\d+)/.exec(location.search), n = m ? +m[1] : 0;
-    return n >= 1 && n <= 10 ? n - 1 : -1;
+    return n >= 1 && n <= 50 ? n - 1 : -1;
   })();
   function stageOf(s) {
     if (forceStage >= 0 && s && s.dev) return forceStage;
@@ -1556,9 +1582,10 @@
   }
   function speciesOf(s) { return s && SPECIES[s.species] ? s.species : 'dino'; }
   var SPRITES = {}; // définitions générées, mises en cache par espèce et niveau
-  function sprKey(i) {
-    var key = speciesOf(st) + ':' + (Math.max(0, i) + 1);
-    if (!SPRITES[key]) SPRITES[key] = spriteDef(speciesOf(st), Math.max(0, i) + 1);
+  function sprKey(i, mul) {
+    mul = mul && mul < 1 ? Math.round(mul * 20) / 20 : 1; // réduction éventuelle pour tenir à l'écran (par pas de 5 %)
+    var key = speciesOf(st) + ':' + (Math.max(0, i) + 1) + (mul < 1 ? ':' + mul : '');
+    if (!SPRITES[key]) SPRITES[key] = spriteDef(speciesOf(st), Math.max(0, i) + 1, mul);
     return key;
   }
 
@@ -1625,7 +1652,7 @@
   // o (facultatif) : { sp, lvl } pour colorer une autre créature (teasers en arrière-plan) avec ses couleurs naturelles
   function creCols(o) {
     if (!o && (!st || st.dead)) return { O: '#9a9aae', L: '#cfcfdc', D: '#6a6a7e', B: '#d8d8e4', b: '#a8a8b8', S: '#7a7a8e', W: '#ffffff', K: K, V: '#5a5a6e', v: '#3e3e50', H: '#e0e0ea', T: '#e0e0ea', M: '#55556a' };
-    var s = o ? 80 : Math.round(45 + st.joy * 0.5), lf = o ? 5 : Math.round(st.food * 0.08), lvl = o ? o.lvl : Math.max(0, cre.stage), leg = lvl === 9, sp = o ? o.sp : speciesOf(st);
+    var s = o ? 80 : Math.round(45 + st.joy * 0.5), lf = o ? 5 : Math.round(st.food * 0.08), lvl = o ? o.lvl : Math.max(0, cre.stage), leg = lvl >= 9, sp = o ? o.sp : speciesOf(st);
     // Teinte d'origine propre à chaque espèce (le phénix passe du jaune poussin au rouge feu), sinon celle achetée en boutique
     var natural = ({ phenix: Math.round(50 - lvl * 4.6), renard: 22, lezard: 100, meduse: 158, horus: 36, lapin: 28, requin: 205 })[sp];
     if (natural === undefined) natural = leg ? 12 : 26;
@@ -1692,7 +1719,7 @@
   };
   function drawEye(ex, ey, kind) {
     var sp = speciesOf(st);
-    var G = sp === 'meduse' && cre.stage >= 6 ? '#5ef2ff' : cre.stage === 9 ? '#ffc21a' : ({ dino: '#3fd46a', phenix: '#ff7a2e', renard: '#ffd23f', lezard: '#ff4f6f', meduse: '#7dff7a', horus: '#2a8aff', lapin: '#ff3d4a', requin: '#ffd23f' })[sp];
+    var G = sp === 'meduse' && cre.stage >= 6 ? '#5ef2ff' : cre.stage >= 9 ? '#ffc21a' : ({ dino: '#3fd46a', phenix: '#ff7a2e', renard: '#ffd23f', lezard: '#ff4f6f', meduse: '#7dff7a', horus: '#2a8aff', lapin: '#ff3d4a', requin: '#ffd23f' })[sp];
     var pal = { K: K, W: '#fff4d8', G: G, S: K };
     var pat = kind === 'dead' ? EYES.dead : (cre.blink > 0 || kind === 'sleep') ? EYES.blink : kind === 'happy' ? EYES.happy : kind === 'sad' ? EYES.sad : EYES.normal;
     for (var y = 0; y < 5; y++) for (var x = 0; x < 6; x++) { var c = pat[y][x]; if (c !== '.') D(ex - 1 + x, ey + y, pal[c]); }
@@ -1737,6 +1764,161 @@
       g.fillRect(ox + xx * C - C, oy + yy * C - C, C * 3, C * 3);
     }
   }
+  // ---------- Effets de puissance après la légende (niveaux 15 à 50) ----------
+  // 15 : halo élargi · 20 : corps en flammes · 25 : orbes en orbite · 30 : éclairs · 35 : cercle de runes au sol
+  // 40 : rayons de lumière derrière lui · 45 : poussière d'étoiles · 50 : tout, aux couleurs de l'arc-en-ciel, et onde de choc
+  var POWER_COL = {
+    dino: ['255,140,40', '255,226,94'], phenix: ['255,110,40', '255,240,150'], renard: ['94,242,255', '255,255,255'],
+    lezard: ['110,255,70', '220,255,120'], meduse: ['94,242,255', '255,255,170'], horus: ['232,196,110', '255,238,170'],
+    lapin: ['255,40,90', '255,170,200'], requin: ['40,130,255', '160,235,255']
+  };
+  // Élément de chaque espèce : il décide de l'effet sur le corps (niveau 20) et du phénomène autour d'elle (niveau 30)
+  var ELEMENT = { dino: 'fire', phenix: 'fire', renard: 'spirit', lezard: 'toxic', meduse: 'thunder', horus: 'sand', lapin: 'ki', requin: 'water' };
+  function elementOf() { return ELEMENT[speciesOf(st)] || 'fire'; }
+  function pcol(i, a, L) {
+    if (L >= 50) return 'hsla(' + (Math.round(T * 90) + i * 70) % 360 + ',100%,62%,' + a.toFixed(3) + ')';
+    return 'rgba(' + (POWER_COL[speciesOf(st)] || POWER_COL.dino)[i] + ',' + a.toFixed(3) + ')';
+  }
+  function topEdge(grid, sd) {
+    var top = [];
+    for (var x = 0; x < sd.gw; x++) for (var y = 0; y < sd.gh; y++) if (grid[y][x] !== '.') { top[x] = y; break; }
+    return top;
+  }
+  // Petit générateur pseudo-aléatoire reproductible (les éclairs gardent leur forme pendant qu'ils s'affichent)
+  function prng(seed) { return function () { seed = (seed * 1664525 + 1013904223) >>> 0; return seed / 4294967296; }; }
+  function drawPower(grid, sd, L, front) {
+    var cx = sd.gw / 2, i, j, x, y;
+    if (!front) {
+      if (L >= 40) { // rayons de lumière qui tournent lentement derrière la créature
+        var rcx = ox + cx * C, rcy = oy + sd.gh * 0.45 * C, R = sd.gh * C * 0.95;
+        g.fillStyle = pcol(1, 0.09 + 0.04 * Math.sin(T * 3), L);
+        for (i = 0; i < 12; i++) {
+          var ra = T * 0.3 + i * Math.PI / 6;
+          g.beginPath(); g.moveTo(rcx, rcy);
+          g.lineTo(rcx + Math.cos(ra - 0.09) * R, rcy + Math.sin(ra - 0.09) * R); g.lineTo(rcx + Math.cos(ra + 0.09) * R, rcy + Math.sin(ra + 0.09) * R);
+          g.fill();
+        }
+      }
+      if (L >= 35) { // cercle de runes qui tourne au sol
+        var rx = sd.gw * 0.55, ry = Math.max(2, sd.gw * 0.08);
+        for (var deg = 0; deg < 360; deg += 3) {
+          var ar = deg * Math.PI / 180;
+          if ((deg + T * 60) % 30 < 18) D(Math.round(cx + Math.cos(ar) * rx), Math.round(sd.gh - 1 + Math.sin(ar) * ry), pcol(0, 0.85, L));
+          if ((deg - T * 90 + 720) % 40 < 10) D(Math.round(cx + Math.cos(ar) * rx * 0.72), Math.round(sd.gh - 1 + Math.sin(ar) * ry * 0.72), pcol(1, 0.9, L));
+        }
+      }
+      // halo élargi : deux couches autour de la silhouette
+      var pulse = 0.05 + 0.03 * Math.sin(T * 5);
+      [[3, pcol(0, pulse, L)], [2, pcol(1, pulse * 1.3, L)]].forEach(function (lay) {
+        g.fillStyle = lay[1];
+        for (var yy = 0; yy < sd.gh; yy++) for (var xx = 0; xx < sd.gw; xx++) {
+          if (grid[yy][xx] !== 'K' || (xx + yy) % 2) continue;
+          var py = yy < curHip ? yy + curBob : yy, px = flip ? curGW - 1 - xx : xx;
+          g.fillRect(ox + px * C - lay[0] * C, oy + py * C - lay[0] * C, C * (lay[0] * 2 + 1), C * (lay[0] * 2 + 1));
+        }
+      });
+    }
+    if (L >= 25) { // orbes en orbite : derrière la créature quand ils passent au fond, devant sinon
+      var n = L >= 45 ? 5 : L >= 35 ? 4 : 3;
+      for (i = 0; i < n; i++) {
+        var a = T * 1.6 + i * Math.PI * 2 / n, depth = Math.sin(a);
+        if ((depth > 0) !== front) continue;
+        var bx = Math.round(cx + Math.cos(a) * sd.gw * 0.62), by = Math.round(sd.gh * 0.45 + depth * sd.gh * 0.12);
+        for (y = -3; y <= 3; y++) for (x = -3; x <= 3; x++) {
+          var d2 = x * x + y * y;
+          if (d2 <= 2) D(bx + x, by + y, d2 === 0 ? '#ffffff' : pcol(1, 1, L));
+          else if (d2 <= 9) D(bx + x, by + y, pcol(0, 0.3, L));
+        }
+      }
+    }
+    if (!front) return;
+    var top = topEdge(grid, sd);
+    var el = elementOf();
+    // Langues d'énergie le long du dos et de la tête (feu, flammes spectrales, poison, ki en pics, eau)
+    function tongues(step, hMul, core, sharp, sp) {
+      for (x = 0; x < sd.gw; x += step) {
+        if (top[x] === undefined) continue;
+        var h = Math.round((2 + ((x * 7 + Math.floor(T * (sp || 12))) % 4)) * hMul);
+        for (j = 0; j < h; j++) {
+          var f = j / h, sway = sharp ? 0 : Math.round(Math.sin(T * 10 + x) * f * 1.5);
+          D(x + sway, top[x] - 1 - j, f < 0.3 ? core : f < 0.65 ? pcol(1, 0.85, L) : pcol(0, 0.55, L));
+          if (sharp && f < 0.5) { D(x - 1, top[x] - 1 - j, pcol(0, 0.5, L)); D(x + 1, top[x] - 1 - j, pcol(0, 0.5, L)); }
+        }
+      }
+    }
+    if (L >= 20) {
+      var big = L >= 35 ? 1.7 : 1;
+      if (el === 'fire') tongues(2, big, 'rgba(255,250,220,.9)');
+      else if (el === 'spirit') tongues(3, big * 1.4, 'rgba(230,255,255,.9)', false, 6);  // flammes spectrales, plus hautes et lentes
+      else if (el === 'toxic') tongues(2, big, 'rgba(240,255,200,.9)', false, 8);
+      else if (el === 'ki') tongues(3, big * 1.6, 'rgba(255,240,245,.95)', true, 18);    // aura de combat en pics
+      else if (el === 'water') tongues(2, big * 0.9, 'rgba(235,250,255,.9)', false, 7);
+      else if (el === 'thunder') { // le contour crépite d'électricité
+        var rz = prng(Math.floor(T * 14) * 31 + 7);
+        for (var yy = 0; yy < sd.gh; yy++) for (var xx = 0; xx < sd.gw; xx++) if (grid[yy][xx] === 'K' && rz() < 0.18) D(xx, yy, rz() < 0.5 ? '#ffffff' : pcol(0, 1, L));
+      } else if (el === 'sand') { // anneaux de sable qui tournent autour du corps
+        for (i = 0; i < 46; i++) {
+          var ring = i % 3, ang = T * (1.2 + ring * 0.5) + i * 2.399, dep = Math.sin(ang);
+          var gx = Math.round(cx + Math.cos(ang) * sd.gw * (0.45 + ring * 0.12)), gy = Math.round(sd.gh * (0.85 - ring * 0.25) + dep * 3);
+          D(gx, gy, ['#e8c878', '#c8a050', '#fff0b0'][i % 3]);
+        }
+      }
+    }
+    if (L >= 30 && el === 'thunder' && (T % 1.4) < 0.14) { // petits arcs électriques autour de la gorgone
+      var rnd = prng(Math.floor(T / 1.4) * 977 + 13);
+      for (i = 0; i < 3; i++) {
+        var sx = Math.floor(rnd() * sd.gw), sy = top[sx] === undefined ? sd.gh / 2 : top[sx], dir = sx < cx ? -1 : 1;
+        for (j = 0; j < 9; j++) {
+          var nx = sx + dir * (1 + Math.floor(rnd() * 3)), ny = sy - 1 - Math.floor(rnd() * 3) + (j % 3 === 2 ? 3 : 0);
+          for (var st2 = 0; st2 <= 4; st2++) D(Math.round(sx + (nx - sx) * st2 / 4), Math.round(sy + (ny - sy) * st2 / 4), j % 2 ? '#ffffff' : pcol(1, 1, L));
+          sx = nx; sy = ny;
+        }
+      }
+    }
+  }
+
+  // Phénomène autour de la créature (niveau 30+), selon son élément. back = derrière la créature, sinon devant.
+  function drawStorm(L, back) {
+    var el = elementOf(), i, x, y;
+    if (back) {
+      if (el === 'thunder') { // la foudre tombe du ciel près de la gorgone
+        var cyc = Math.floor(T / 2.6), ph = T % 2.6;
+        if (ph < 0.22) {
+          var rnd = prng(cyc * 131 + 5), bx = cre.x + (rnd() < 0.5 ? -1 : 1) * (30 + rnd() * W * 0.25), by = hudBottom, step = Math.max(6, Math.round((groundY - hudBottom) / 12));
+          if (cre.boltT !== cyc) { cre.boltT = cyc; Audio8.fx('thunder'); shake = 0.25; }
+          g.fillStyle = 'rgba(200,240,255,' + (0.25 * (1 - ph / 0.22)).toFixed(2) + ')'; g.fillRect(0, 0, W, H);
+          while (by < groundY) {
+            var nx = bx + (rnd() - 0.5) * 18, ny = Math.min(groundY, by + step);
+            for (var k = 0; k <= 8; k++) {
+              var px = Math.round(bx + (nx - bx) * k / 8), py = Math.round(by + (ny - by) * k / 8);
+              g.fillStyle = 'rgba(94,242,255,.6)'; g.fillRect(px - 1, py, 3, 2);
+              g.fillStyle = '#ffffff'; g.fillRect(px, py, 1, 2);
+            }
+            bx = nx; by = ny;
+          }
+          spawnSparks(bx, groundY - 2, 3, '#ffffff');
+        }
+      } else if (el === 'water') { // vagues qui roulent au sol
+        for (var w = 0; w < 2; w++) for (x = 0; x < W; x++) {
+          y = Math.round(groundY - 3 - w * 4 + Math.sin(x * 0.07 + T * (3 + w) + w * 2) * 2.5);
+          g.fillStyle = w ? 'rgba(90,184,255,.55)' : 'rgba(40,120,230,.6)'; g.fillRect(x, y, 1, 3 + w * 2);
+          if ((x + Math.floor(T * 30)) % 23 === 0) { g.fillStyle = '#e8f8ff'; g.fillRect(x, y - 1, 2, 1); }
+        }
+      }
+      return;
+    }
+    if (el === 'sand') { // tempête de sable sur tout l'écran
+      g.fillStyle = 'rgba(200,160,80,.22)'; g.fillRect(0, 0, W, H);
+      for (i = 0; i < 120; i++) {
+        y = Math.floor(((i * 2654435761) >>> 0) % 1000 / 1000 * groundY);
+        var len = 10 + (i % 5) * 8;
+        x = Math.floor((i * 97 + T * (180 + (i % 4) * 50)) % (W + 80)) - 40;
+        g.fillStyle = ['rgba(232,200,120,.55)', 'rgba(200,160,80,.5)', 'rgba(255,240,180,.45)'][i % 3];
+        g.fillRect(x, y + Math.round(Math.sin(T * 3 + i) * 2), len, i % 3 ? 1 : 2);
+      }
+    }
+  }
+
   // Flamme qui crépite au bout de la queue
   function drawFlame(tx, ty) {
     var cols = ['#fff3a0', '#ffd23f', '#ff8a1f', '#ff3d2e'], h = 5 + ((T * 12 | 0) % 2);
@@ -1868,7 +2050,23 @@
     }
     var key = sprKey(si), sd = SPRITES[key];
     var big = SPRITES[sprKey(Math.max(si, cre.stage))];
-    C = (groundY - hudBottom >= big.gh * 2 + 10 && big.gw * 2 <= W * 0.6) ? 2 : 1;
+    // Échelle du sprite : 2 au maximum jusqu'au niveau 10 ; ensuite elle compense le dézoom (la créature ne rétrécit
+    // jamais à l'écran, elle grandit), dans la limite de la place entre le HUD et le sol
+    var cMax = Math.max(2, Math.round(2 * Sbase / S));
+    var high = Math.max(si, cre.stage) >= 10;
+    // Place accordée : jusqu'au niveau 10 comme avant ; au-delà, au plus 62 % de la hauteur de jeu et 45 % de la largeur
+    // (70 % en portrait), pour que la créature reste imposante sans écraser l'écran ni sortir par les bords
+    var wFrac = W < H ? (high ? 0.7 : 0.85) : (high ? 0.45 : 0.6);
+    var hAvail = high ? (groundY - hudBottom) * 0.62 : groundY - hudBottom - 10;
+    // Après le niveau 10, plutôt que de perdre tout un cran d'échelle, on génère la créature un peu moins grande (jusqu'à -30 %)
+    var fitMul = 1;
+    for (C = cMax; C > 1; C--) {
+      var fit = Math.min(hAvail / (big.gh * C), W * wFrac / (big.gw * C));
+      if (fit >= 1) break;
+      if (high && fit >= 0.7) { fitMul = fit; break; }
+    }
+    if (fitMul < 1) { key = sprKey(si, fitMul); sd = SPRITES[key]; }
+    cre.half = sd.gw * C / 2; // demi-largeur réellement dessinée : sert à garder la créature entière à l'écran
     var kind = cre.eat > 0 ? 'happy' : asleep() ? 'sleep' : moodOf(st);
     var pose = 'idle', bob = 0;
     if (cre.walking) { var f = Math.floor(cre.walkT * 8) % 4; pose = f === 0 ? 'w1' : f === 2 ? 'w2' : 'idle'; bob = f % 2; }
@@ -1899,9 +2097,11 @@
     g.fillRect(Math.round(cre.x - (sw - 4) * C / 2), groundY, (sw - 4) * C, C);
 
     var grid = spriteGrid(key, pose), cols = creCols();
-    var legend = si === 9 && kind !== 'dead' && !evoWhite;
-    if (speciesOf(st) === 'lapin' && si >= 5 && kind !== 'dead' && !evoWhite) drawAura(grid, sd, si === 9 ? '255,79,200' : '255,50,80');
+    var legend = si >= 9 && kind !== 'dead' && !evoWhite;
+    if (speciesOf(st) === 'lapin' && si >= 5 && kind !== 'dead' && !evoWhite) drawAura(grid, sd, si >= 9 ? '255,79,200' : '255,50,80');
     else if (legend) drawAura(grid, sd);
+    var power = kind !== 'dead' && !evoWhite && si >= 14 ? si + 1 : 0;
+    if (power) drawPower(grid, sd, power, false);
     if (em && em.k === 'sprint') { // effet de vitesse : traits de vent et images rémanentes derrière la créature
       var ox0 = ox, back = flip ? 1 : -1, gx, gy;
       for (gy = 0; gy < 7; gy++) {
@@ -1940,6 +2140,7 @@
         for (var ry = 0; ry < BOOK.length; ry++) for (var rx = 0; rx < BOOK[ry].length; rx++) { var bc = BOOK[ry][rx]; if (bc !== '.') D(bx + rx, by + ry, bk[bc]); }
       }
       if (legend && sd.flame && sd.tail) drawFlame(sd.tail[0], sd.tail[1]);
+      if (power) drawPower(grid, sd, power, true);
       if (speciesOf(st) === 'meduse' && si >= 6 && kind !== 'dead' && kind !== 'sleep' && (T % 7) < 1) drawGaze(sd);
       if (kind === 'dead') {
         var hx = sd.halo[0], ht = sd.halo[1], gold = '#ffe25e';
@@ -1953,7 +2154,7 @@
 
   // ---------- Petites animations au hasard (quand la créature n'a rien d'autre à faire) ----------
   // Chaque espèce peut tout faire ; le rire et les gestes « de costaud » dépendent du niveau.
-  var EMOTE_DUR = { sprint: 8, jump: 0.9, laugh: 1.4, sneeze: 1.3, dance: 5, read: 5.5, squat: 3.4, flex: 1.8, roar: 1.6 };
+  var EMOTE_DUR = { stomp: 1.3, powerup: 2.9, levitate: 3.6, sprint: 8, jump: 0.9, laugh: 1.4, sneeze: 1.3, dance: 5, read: 5.5, squat: 3.4, flex: 1.8, roar: 1.6 };
   var BOOK = ['.WWWKWWW.', 'WLLLKLLLW', 'WWLLKLLWW', 'WLLLKLLLW', 'WWWWKWWWW', '.BBBBBBB.'];
   var NOTE = ['..KK', '..K.', '..K.', 'KKK.', 'KK..'];
   function pickEmote() {
@@ -1963,6 +2164,9 @@
     if (lv >= 2 && fours) pool.push('sprint', 'sprint'); // les quadrupèdes font un sprint à la place
     if (lv >= 5) pool.push('flex');
     if (lv >= 6) pool.push('roar');
+    if (lv >= 14) pool.push('stomp', 'stomp');   // niveau 15 : piétinement qui fait trembler le sol
+    if (lv >= 24) pool.push('powerup', 'powerup'); // niveau 25 : charge d'énergie et explosion
+    if (lv >= 39) pool.push('levitate');         // niveau 40 : lévitation
     if ((speciesOf(st) === 'lapin' || speciesOf(st) === 'requin') && lv >= 4) pool.push('squat', 'flex', 'flex');
     return pool[Math.random() * pool.length | 0];
   }
@@ -1976,14 +2180,38 @@
       floatText(['HIHI !', 'HA HA HA !', 'MWAHAHAHA !'][tier - 1], ['#ffd2f0', '#ffe25e', '#ff4f6f'][tier - 1]);
       if (tier === 3) shake = 0.5;
     } else if (k === 'sneeze') Audio8.fx('sneeze');
+    else if (k === 'stomp') { jump(120); Audio8.fx('jump'); }
+    else if (k === 'powerup') { Audio8.fx('charge'); floatText('…', '#ffffff'); }
+    else if (k === 'levitate') { Audio8.fx('charge'); floatText('LÉVITATION', '#d8b0ff'); }
     else if (k === 'sprint') { cre.dir = cre.x < playCx ? -1 : 1; Audio8.fx('dash'); floatText('ZOOM !', '#5ef2ff'); } // part vers le bord le plus proche
     else if (k === 'read') { Audio8.fx('page'); floatText('…', '#d8d4ff'); }
     else if (k === 'flex') { Audio8.fx('flex'); floatText('FLEX !', '#ffd23f'); spawnSparks(cre.x, mouth.y + 8 * C, 14, '#ffd23f'); }
     else if (k === 'roar') { Audio8.fx('roar'); floatText('ROAAAR !', '#ff8a1f'); shake = 0.6; }
   }
+  function shockwave(col) { parts.push({ k: 'wave', x: cre.x, y: groundY, vx: 0, vy: 0, gr: 0, life: 0.9, col: col || '#ffffff' }); }
   function updateEmote(dt) {
     var e = cre.emote; if (!e) return;
     var et = T - e.t0;
+    if (e.k === 'stomp' && !e.done && et > 0.3 && cre.jy <= 0) { // atterrissage : le sol tremble
+      e.done = true; shake = 0.55; Audio8.fx('boom'); shockwave('#e8dcc0'); floatText('BOUM !', '#ffd23f');
+      for (var si2 = 0; si2 < 24; si2++) parts.push({ k: 'spark', x: cre.x + (Math.random() - 0.5) * 30 * C, y: groundY - 2, vx: (Math.random() - 0.5) * 160, vy: -40 - Math.random() * 80, gr: 300, life: 0.6, col: '#c8b08a' });
+    }
+    if (e.k === 'powerup') { // l'énergie converge vers la créature, puis explose
+      if (et < 2.3 && Math.random() < dt * 40) {
+        var ang = Math.random() * Math.PI * 2, rr = 60 + Math.random() * 40, cyp = mouth.y + 6 * C;
+        parts.push({ k: 'spark', x: cre.x + Math.cos(ang) * rr, y: cyp + Math.sin(ang) * rr, vx: -Math.cos(ang) * rr * 2.2, vy: -Math.sin(ang) * rr * 2.2, gr: 0, life: 0.45, col: Math.random() < 0.5 ? '#ffffff' : '#ffe25e' });
+      }
+      if (et > 2.3 && !e.done) {
+        e.done = true; flash(); shake = 0.7; Audio8.fx('burst'); shockwave('#ffe25e'); floatText('POWER !', '#ffe25e');
+        spawnSparks(cre.x, mouth.y + 6 * C, 50);
+      }
+    }
+    if (e.k === 'levitate') { // s'élève doucement, flotte, puis retombe lourdement
+      var lift = Math.sin(Math.min(1, et / (e.dur - 0.4)) * Math.PI) * 20 * C;
+      if (et < e.dur - 0.4) { cre.jy = Math.max(0.01, lift + Math.sin(T * 4) * C); cre.vy = 0; }
+      if (Math.random() < dt * 20) parts.push({ k: 'spark', x: cre.x + (Math.random() - 0.5) * 30 * C, y: groundY - Math.random() * 4, vx: 0, vy: -20 - Math.random() * 30, gr: 0, life: 0.8, col: '#d8b0ff' });
+      if (et >= e.dur - 0.05 && !e.done) { e.done = true; shake = 0.4; Audio8.fx('boom'); shockwave('#d8b0ff'); }
+    }
     if (e.k === 'sprint') {
       // Sprint : sort de l'écran d'un côté, réapparaît de l'autre et freine au milieu
       var sp = 150 + Math.min(1, et * 2) * 60;
@@ -2566,8 +2794,8 @@
       cre.evo -= dt;
       if (cre.evo <= 0) {
         flash(); shake = 0.3; spawnSparks(cre.x, mouth.top + 10 * C, 50); Audio8.fx('hatch');
-        var newTier = tierOf(cre.stage) !== tierOf(cre.evoFrom);
-        setDialog('SYSTÈME', st.name + ' passe au niveau ' + (cre.stage + 1) + ' !' + (newTier ? ' Il devient ' + TIERS[tierOf(cre.stage)].n + '.' : ''), 6000, true);
+        var newRank = rankOf(cre.stage) !== rankOf(cre.evoFrom);
+        setDialog('SYSTÈME', st.name + ' passe au niveau ' + (cre.stage + 1) + ' !' + (newRank ? ' Il devient ' + rankOf(cre.stage) + ' !' : ''), 6000, true);
       }
     }
     if (!cre.travel && (cre.jy > 0 || cre.vy > 0)) {
@@ -2582,7 +2810,7 @@
     if (cre.egg > 0) { cre.walking = false; updateEgg(dt); return; }
     if (game) { gameCreature(dt); return; }
     // Balade gauche / droite
-    var half = (SPRITES[sprKey(Math.max(0, cre.stage))] || { gw: 48 }).gw * C / 2, range = Math.max(0, Math.min(playR * 0.28, 70, playR / 2 - half - 4));
+    var half = cre.half || 24 * C, range = Math.max(0, Math.min(playR * 0.28, 70, playR / 2 - half - 4));
     if (cre.dash > 0) cre.dash -= dt;
     var busy = reduce || !st || st.dead || asleep() || cre.evo > 0 || cre.eat > 0 || (cre.jy > 0 && cre.dash <= 0) || parts.some(function (p) { return p.k === 'pizza'; });
     // Animation au hasard toutes les 15 à 40 s, seulement si la créature ne fait rien d'autre et que la page est visible
@@ -2607,10 +2835,11 @@
         }
       }
     }
-    if (!(cre.emote && cre.emote.k === 'sprint')) cre.x = Math.max(24 * C, Math.min(Math.max(24 * C, playR - half), cre.x));
+    if (!(cre.emote && cre.emote.k === 'sprint')) cre.x = Math.max(half + 2, Math.min(Math.max(half + 2, playR - half - 2), cre.x)); // jamais coupée par un bord
   }
   function update(dt) {
     T += dt;
+    if (started && targetS() !== S) resize(); // nouveau palier de dézoom (montée de niveau, fin d'évolution, mini-jeu)
     updateCreature(dt);
     updateBonus(dt);
     updateTease(dt);
@@ -2620,9 +2849,20 @@
     // Le requin vit hors de l'eau : quelques bulles remontent autour de lui
     if (speciesOf(st) === 'requin' && st && !st.dead && !(cre.egg > 0) && cre.evo <= 0 && Math.random() < dt * 1.6) spawnBubbles(1);
     // Aura de combat du lapin debout : flammèches rouges (roses pour la légende) qui montent autour de lui
-    if (speciesOf(st) === 'lapin' && st && !st.dead && cre.stage >= 4 && cre.evo <= 0 && Math.random() < dt * (cre.stage === 9 ? 22 : 12)) parts.push({ k: 'spark', x: cre.x + (Math.random() - 0.5) * 26 * C, y: groundY - Math.random() * 12 * C, vx: (Math.random() - 0.5) * 6, vy: -30 - Math.random() * 35, gr: -15, life: 0.7 + Math.random() * 0.6, col: cre.stage === 9 ? (Math.random() < 0.5 ? '#ff4fc8' : '#ffd23f') : (Math.random() < 0.6 ? '#ff3250' : '#ff8a1f') });
+    if (speciesOf(st) === 'lapin' && st && !st.dead && cre.stage >= 4 && cre.evo <= 0 && Math.random() < dt * (cre.stage >= 9 ? 22 : 12)) parts.push({ k: 'spark', x: cre.x + (Math.random() - 0.5) * 26 * C, y: groundY - Math.random() * 12 * C, vx: (Math.random() - 0.5) * 6, vy: -30 - Math.random() * 35, gr: -15, life: 0.7 + Math.random() * 0.6, col: cre.stage >= 9 ? (Math.random() < 0.5 ? '#ff4fc8' : '#ffd23f') : (Math.random() < 0.6 ? '#ff3250' : '#ff8a1f') });
     if (speciesOf(st) === 'horus' && st && !st.dead && cre.evo <= 0 && Math.random() < dt * 3) parts.push({ k: 'spark', x: cre.x + (Math.random() - 0.5) * 30 * C, y: groundY - Math.random() * 40 * C, vx: 0, vy: -12, gr: 0, life: 0.8, col: '#ffe98a' }); // aura de la créature épique
-    if (cre.stage === 9 && st && !st.dead && cre.evo <= 0 && Math.random() < dt * 6) parts.push({ k: 'spark', x: cre.x + (Math.random() - 0.5) * 44 * C, y: groundY - Math.random() * 10 * C, vx: (Math.random() - 0.5) * 10, vy: -25 - Math.random() * 30, gr: -10, life: 1 + Math.random(), col: Math.random() < 0.5 ? '#ffd23f' : '#ff8a1f' });
+    if (cre.stage >= 19 && st && !st.dead && cre.evo <= 0) {
+      var elp = elementOf(), sL = cre.stage >= 29;
+      if (elp === 'water' && Math.random() < dt * 10) parts.push({ k: 'bubble', x: cre.x + (Math.random() - 0.5) * 34 * C, y: groundY - Math.random() * 30 * C, vx: 0, vy: -20 - Math.random() * 20, gr: 0, life: 1.4, sw: Math.random() * 6, r: Math.random() < 0.4 ? 2 : 1 });
+      if (elp === 'toxic' && Math.random() < dt * 8) parts.push({ k: 'bubble', x: cre.x + (Math.random() - 0.5) * 30 * C, y: groundY - Math.random() * 20 * C, vx: 0, vy: -15 - Math.random() * 15, gr: 0, life: 1.2, sw: Math.random() * 6, r: 1, tint: 'rgba(150,255,90,.9)' });
+      if (elp === 'spirit' && Math.random() < dt * 4) parts.push({ k: 'spark', x: cre.x + (Math.random() - 0.5) * 60 * C, y: groundY - Math.random() * 40 * C, vx: (Math.random() - 0.5) * 12, vy: -6 - Math.random() * 8, gr: 0, life: 2.5, col: Math.random() < 0.5 ? '#9ff6ff' : '#ffffff' });
+      if (sL && elp === 'fire' && Math.random() < dt * 18) parts.push({ k: 'spark', x: Math.random() * W, y: hudBottom, vx: -20 - Math.random() * 20, vy: 60 + Math.random() * 60, gr: 30, life: 2.5, col: Math.random() < 0.6 ? '#ff8a1f' : '#ffd23f' });
+      if (sL && (elp === 'toxic' || elp === 'water') && Math.random() < dt * 40) parts.push({ k: 'drop', x: Math.random() * W, y: hudBottom, vx: -15, vy: 220 + Math.random() * 80, gr: 0, life: 2, col: elp === 'toxic' ? 'rgba(150,255,90,.75)' : 'rgba(170,220,255,.7)' });
+      if (sL && elp === 'ki' && Math.random() < dt * 6) parts.push({ k: 'spark', x: cre.x + (Math.random() - 0.5) * 70 * C, y: groundY - 1, vx: 0, vy: -10 - Math.random() * 14, gr: 0, life: 2.6, col: ['#8a6a4a', '#6a4a30', '#a8885a'][Math.random() * 3 | 0], big: true });
+    }
+    if (cre.stage >= 44 && st && !st.dead && cre.evo <= 0 && Math.random() < dt * 14) parts.push({ k: 'spark', x: cre.x + (Math.random() - 0.5) * 70 * C, y: groundY - Math.random() * 60 * C, vx: (Math.random() - 0.5) * 8, vy: -6 - Math.random() * 10, gr: 0, life: 1.2 + Math.random(), col: ['#ffffff', '#ff9ad0', '#5ef2ff', '#ffe25e'][Math.random() * 4 | 0] });
+    if (cre.stage >= 49 && st && !st.dead && cre.evo <= 0 && Math.floor(T / 4) !== cre.waveT) { cre.waveT = Math.floor(T / 4); shockwave('hsl(' + Math.round(T * 90) % 360 + ',100%,65%)'); }
+    if (cre.stage >= 9 && st && !st.dead && cre.evo <= 0 && Math.random() < dt * 6) parts.push({ k: 'spark', x: cre.x + (Math.random() - 0.5) * 44 * C, y: groundY - Math.random() * 10 * C, vx: (Math.random() - 0.5) * 10, vy: -25 - Math.random() * 30, gr: -10, life: 1 + Math.random(), col: Math.random() < 0.5 ? '#ffd23f' : '#ff8a1f' });
 
     for (var i = parts.length - 1; i >= 0; i--) {
       var p = parts[i];
@@ -2689,7 +2929,10 @@
 
     var disco = cre.emote && cre.emote.k === 'dance' && st && !st.dead ? cre.emote : null;
     if (disco) drawDisco(disco, false); // ambiance, faisceaux et taches de lumière derrière la créature
+    var stormL = st && !st.dead && cre.evo <= 0 && cre.stage >= 29 && !document.body.classList.contains('gaming') ? cre.stage + 1 : 0;
+    if (stormL) drawStorm(stormL, true);
     mouth = drawCreature();
+    if (stormL) drawStorm(stormL, false);
     if (disco) drawDisco(disco, true);  // la boule elle-même, devant
     if (cre.travel) drawTravel();
     drawBonus();
@@ -2702,9 +2945,10 @@
       else if (p.k === 'bigheart') drawSprite(HEART, p.x - 3.5 * p.s, p.y, p.s);
       else if (p.k === 'note') spr(NOTE, { K: p.col }, p.x, p.y, false, C);
       else if (p.k === 'pizza') drawSprite(PIZZA, p.x, p.y, p.s);
-      else if (p.k === 'spark') { g.fillStyle = p.col; g.fillRect(Math.floor(p.x), Math.floor(p.y), C, C); }
+      else if (p.k === 'spark') { g.fillStyle = p.col; g.fillRect(Math.floor(p.x), Math.floor(p.y), p.big ? 2 * C : C, p.big ? 2 * C : C); }
+      else if (p.k === 'drop') { g.fillStyle = p.col; g.fillRect(Math.floor(p.x), Math.floor(p.y), 1, 3 * C); }
       else if (p.k === 'bubble') {
-        var br = p.r * C; g.fillStyle = 'rgba(200,250,255,.9)';
+        var br = p.r * C; g.fillStyle = p.tint || 'rgba(200,250,255,.9)';
         g.fillRect(Math.floor(p.x) - br, Math.floor(p.y), C, br * 2); g.fillRect(Math.floor(p.x) + br, Math.floor(p.y), C, br * 2);
         g.fillRect(Math.floor(p.x), Math.floor(p.y) - br, br * 2 - C, C); g.fillRect(Math.floor(p.x), Math.floor(p.y) + br * 2, br * 2 - C, C);
         g.fillStyle = '#ffffff'; g.fillRect(Math.floor(p.x), Math.floor(p.y), C, C);
@@ -2712,6 +2956,10 @@
         var bx = Math.floor(p.x), by = Math.floor(p.y), u = C;
         g.fillStyle = '#e43b44'; g.fillRect(bx - u, by - 2 * u, 2 * u, 4 * u); g.fillRect(bx - 2 * u, by - u, 4 * u, 2 * u);
         g.fillStyle = '#ffffff'; g.fillRect(bx - 2 * u, by, 4 * u, u); g.fillRect(bx - u, by - u, u, u);
+      } else if (p.k === 'wave') { // onde de choc qui s'étale au sol
+        var wr = Math.round((0.9 - p.life) * 140) + 6, wry = Math.max(2, Math.round(wr * 0.12));
+        g.fillStyle = p.col; g.globalAlpha = Math.min(1, p.life * 1.4);
+        for (var wd = 0; wd < 360; wd += 4) { var wa = wd * Math.PI / 180; g.fillRect(Math.round(p.x + Math.cos(wa) * wr), Math.round(p.y + Math.sin(wa) * wry), C, C); }
       } else if (p.k === 'ring') {
         var rr = Math.round((0.3 - p.life) * 30) + 2, rx0 = Math.floor(p.x), ry0 = Math.floor(p.y);
         g.fillStyle = p.col; g.globalAlpha = Math.min(1, p.life * 4);
@@ -2719,7 +2967,7 @@
         var dd = Math.round(rr * 0.7);
         g.fillRect(rx0 - dd, ry0 - dd, 1, 1); g.fillRect(rx0 + dd, ry0 - dd, 1, 1); g.fillRect(rx0 - dd, ry0 + dd, 1, 1); g.fillRect(rx0 + dd, ry0 + dd, 1, 1);
       } else if (p.k === 'txt') {
-        g.font = '8px "Press Start 2P", monospace'; g.textAlign = 'center';
+        g.font = Math.round(8 * textK) + 'px "Press Start 2P", monospace'; g.textAlign = 'center';
         g.fillStyle = '#000'; g.fillText(p.text, Math.floor(p.x) + 1, Math.floor(p.y) + 1);
         g.fillStyle = p.col; g.fillText(p.text, Math.floor(p.x), Math.floor(p.y));
       }
@@ -2892,7 +3140,7 @@
   }
   function renderHint(lvl, nextAt, untilNext) {
     var el = $('xpHint'), name = st.name.toUpperCase();
-    if (lvl >= LEVELS.length - 1) { el.className = 'max'; el.textContent = 'LÉGENDE ULTIME : GARDE-LE EN VIE POUR LE PANTHÉON !'; return; }
+    if (lvl >= LEVELS.length - 1) { el.className = 'max'; el.textContent = 'NIVEAU 50 : ÉTERNEL ! GARDE-LE EN VIE POUR LE PANTHÉON !'; return; }
     var lvlTxt = 'NIV. ' + (lvl + 2);
     // Alerte seulement s'il a vraiment faim : aux hauts niveaux, même le ventre plein ne tient pas jusqu'au palier suivant
     if (st.food < 35 && starveIn() < untilNext) { el.className = 'danger'; el.textContent = 'SANS REPAS, ' + name + ' NE VERRA PAS LE ' + lvlTxt + ' !'; return; }
@@ -2949,7 +3197,7 @@
     $('name').textContent = '★ ' + st.name.toUpperCase() + ' ★';
     $('name').classList.toggle('rainbow', rainbow());
     var lvl = cre.stage < 0 ? stageOf(st) : cre.stage;
-    $('age').textContent = (cre.egg > 0 ? 'ŒUF MYSTÈRE' : SPECIES[speciesOf(st)].name) + ' · NIV. ' + (lvl + 1) + ' · ' + (st.dead ? 'A VÉCU ' + fmt(st.deadAt - st.born) : 'ÂGE ' + fmt(now - st.born));
+    $('age').textContent = (cre.egg > 0 ? 'ŒUF MYSTÈRE' : SPECIES[speciesOf(st)].name) + ' · NIV. ' + (lvl + 1) + '/' + (MAX_STAGE + 1) + (lvl >= 8 ? ' ' + rankOf(lvl) : '') + ' · ' + (st.dead ? 'A VÉCU ' + fmt(st.deadAt - st.born) : 'ÂGE ' + fmt(now - st.born));
     renderXp(now);
     $('place').textContent = st.place ? 'SÉJOUR ' + PLACE_NAMES[st.place.key] + ' · ENCORE ' + fmt(Math.max(0, st.place.until - now)) : '';
     $('score').textContent = pad(st.actions);

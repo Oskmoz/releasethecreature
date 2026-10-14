@@ -263,7 +263,9 @@ const fill = (s) => s.replace(/\{n\}/g, state.name);
 
 // Panthéon : les 10 créatures qui ont vécu le plus longtemps (seules ces 10 lignes sont conservées)
 const HALL_SIZE = 10;
-const LEVEL_HOURS = [0, 0.25, 0.75, 1.5, 3, 6, 12, 24, 48, 96]; // mêmes seuils que les niveaux de la page
+// 50 niveaux (mêmes seuils que la page) : les 10 premiers inchangés (niveau 10 à 4 jours), puis un niveau toutes les 12 h (niveau 50 à 24 jours)
+const LEVEL_HOURS = [0, 0.25, 0.75, 1.5, 3, 6, 12, 24, 48, 96];
+for (let l = 11; l <= 50; l++) LEVEL_HOURS.push(96 + (l - 10) * 12);
 const levelOf = (ms) => LEVEL_HOURS.filter((h) => ms >= h * H).length;
 
 function newCreature(now, best) {
