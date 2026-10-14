@@ -257,6 +257,33 @@
     #bottom { gap:16px; }
     #controls { grid-template-columns:repeat(3, 1fr); gap:12px; }
     .big { padding:12px 4px; gap:6px; font-size:8px; }
+    /* Téléphone : HUD compact pour laisser la place à la créature.
+       Jauges horizontales à gauche, score et pseudo à droite, menu dessous, infos du niveau resserrées. */
+    #hud { gap:6px 8px; padding-top:max(8px, env(safe-area-inset-top)); }
+    #bars { flex-direction:column; gap:3px; padding:5px 7px; }
+    .ebar { flex-direction:row-reverse; justify-content:flex-end; width:auto; gap:6px; }
+    .ebar b { width:44px; text-align:right; font-size:6px; }
+    .segs { flex-direction:row; width:auto; padding:2px; gap:1px; }
+    .seg { width:4px; height:5px; }
+    .food .seg.on, .joy .seg.on, .clean .seg.on, .fit .seg.on, .sleep .seg.on, .ebar.low .seg.on { box-shadow:none; }
+    #right { flex:1 1 0; flex-basis:0; min-width:0; flex-direction:column; align-items:flex-end; justify-content:center; gap:5px; align-self:stretch; font-size:7px; }
+    #nickBtn { font-size:7px; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+    #sys { gap:5px; }
+    .px { font-size:6px; padding:5px 6px; }
+    #mid { padding-top:0; }
+    #name { font-size:12px; }
+    #age, #place { margin-top:5px; font-size:7px; padding:3px 7px; }
+    #xp { flex-direction:row; gap:6px; margin-top:5px; padding:4px 7px; }
+    #xpBar { width:28vw; }
+    #xp { max-width:calc(100vw - 20px); }
+    #xpBar i { height:4px; }
+    #xpText, #xpHint { font-size:6px; }
+    #xpHint { margin-top:5px; padding:3px 7px; }
+    #ticker { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; font-size:7px; padding:4px 8px; }
+    #bottom { gap:12px; }
+    #dialog { min-height:0; padding:14px 12px 10px; }
+    #text { font-size:9px; min-height:0; }
+    .big { padding:10px 4px; }
     .k { min-width:20px; height:20px; font-size:8px; }
     .buy { min-width:96px; }
   }
