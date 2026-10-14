@@ -369,6 +369,7 @@
      ===================================================================== */
   var cv = $('world'), g = cv.getContext('2d');
   var S = 3, W = 320, H = 240, groundY = 200, C = 2, mot = 1, hudBottom = 0;
+  var playR = 320, playCx = 160; // zone où la créature se promène : à gauche du journal sur grand écran
   // Un décor par stade d'évolution. Palettes choisies pour contraster avec l'orange du dino
   // (bleus, violets, sarcelles) tout en restant dans une même famille de teintes par scène.
   var SCENES = [
@@ -466,6 +467,10 @@
     groundY = Math.max(40, Math.min(H - 8, Math.floor(bt / S) - 18));
     hudBottom = Math.ceil(ht / S);
     $('logbox').style.top = Math.ceil($('hud').getBoundingClientRect().bottom + 14) + 'px'; // le journal commence toujours sous le HUD, quelle que soit sa hauteur
+    // Sur grand écran, le journal est fixé à droite : la créature reste dans l'espace libre à sa gauche
+    var lb = $('logbox').getBoundingClientRect(), lbLeft = Math.floor((lb.left - 12) / S);
+    playR = lb.width > 0 && lbLeft > W * 0.55 ? lbLeft : W;
+    playCx = Math.round(playR / 2);
     skyKey = '';
   }
 
@@ -1849,7 +1854,7 @@
       floatText(['HIHI !', 'HA HA HA !', 'MWAHAHAHA !'][tier - 1], ['#ffd2f0', '#ffe25e', '#ff4f6f'][tier - 1]);
       if (tier === 3) shake = 0.5;
     } else if (k === 'sneeze') Audio8.fx('sneeze');
-    else if (k === 'sprint') { cre.dir = cre.x < W / 2 ? -1 : 1; Audio8.fx('dash'); floatText('ZOOM !', '#5ef2ff'); } // part vers le bord le plus proche
+    else if (k === 'sprint') { cre.dir = cre.x < playCx ? -1 : 1; Audio8.fx('dash'); floatText('ZOOM !', '#5ef2ff'); } // part vers le bord le plus proche
     else if (k === 'read') { Audio8.fx('page'); floatText('…', '#d8d4ff'); }
     else if (k === 'flex') { Audio8.fx('flex'); floatText('FLEX !', '#ffd23f'); spawnSparks(cre.x, mouth.y + 8 * C, 14, '#ffd23f'); }
     else if (k === 'roar') { Audio8.fx('roar'); floatText('ROAAAR !', '#ff8a1f'); shake = 0.6; }
@@ -1863,8 +1868,8 @@
       cre.x += cre.dir * sp * dt; cre.walkT += dt * 2.5;
       if (Math.random() < dt * 30) parts.push({ k: 'spark', x: cre.x - cre.dir * 10 * C, y: groundY - 2 - Math.random() * 3, vx: -cre.dir * (20 + Math.random() * 30), vy: -10 - Math.random() * 15, gr: 60, life: 0.4, col: '#d8c8a8' });
       if (!e.wrapped && (cre.x > W + 50 || cre.x < -50)) { e.wrapped = true; cre.x = cre.dir > 0 ? -50 : W + 50; Audio8.fx('dash'); }
-      if (e.wrapped && Math.abs(cre.x - W / 2) < 6) { cre.emote = null; cre.tx = cre.x; cre.wait = 1.5; spawnSparks(cre.x, groundY - 2, 10, '#d8c8a8'); }
-      else if (et >= e.dur) { cre.emote = null; cre.x = W / 2; cre.tx = cre.x; }
+      if (e.wrapped && Math.abs(cre.x - playCx) < 6) { cre.emote = null; cre.tx = cre.x; cre.wait = 1.5; spawnSparks(cre.x, groundY - 2, 10, '#d8c8a8'); }
+      else if (et >= e.dur) { cre.emote = null; cre.x = playCx; cre.tx = cre.x; }
       return;
     }
     if (e.k === 'sneeze' && !e.done && et > 0.45) { e.done = true; floatText('ATCHOUM !', '#9fffb0'); spawnBubbles(5); jump(60); }
@@ -2100,12 +2105,12 @@
     } else {
       if (!tr.switched) { tr.switched = true; if (tr.kind === 'car') Audio8.fx('car'); else Audio8.fx('fly'); }
       var v = Math.min(1, (tr.t - TRAVEL_MID) / (TRAVEL_DUR - TRAVEL_MID)), e = 1 - (1 - v) * (1 - v);
-      if (tr.kind === 'car') { cre.dir = 1; cre.x = -30 * C + (W / 2 + 30 * C) * e; cre.jy = 6 * C; }
-      else { cre.x = W / 2; cre.jy = (groundY + gh) * (1 - e); }
+      if (tr.kind === 'car') { cre.dir = 1; cre.x = -30 * C + (playCx + 30 * C) * e; cre.jy = 6 * C; }
+      else { cre.x = playCx; cre.jy = (groundY + gh) * (1 - e); }
     }
     if (tr.kind === 'fly' && Math.random() < dt * 40) parts.push({ k: 'spark', x: cre.x + (Math.random() - 0.5) * 10 * C, y: groundY - cre.jy + 6 * C, vx: (Math.random() - 0.5) * 30, vy: 40 + Math.random() * 60, gr: 0, life: 0.4, col: Math.random() < 0.5 ? '#ffd23f' : '#c8c8d8' });
     if (tr.t >= TRAVEL_DUR) {
-      cre.travel = null; cre.jy = 0; cre.vy = 0; cre.x = cre.tx = W / 2; cre.wait = 1.5;
+      cre.travel = null; cre.jy = 0; cre.vy = 0; cre.x = cre.tx = playCx; cre.wait = 1.5;
       if (tr.kind === 'car') jump(130);
       else { spawnSparks(cre.x, groundY - 2, 14, '#e8e4ff'); shake = 0.25; Audio8.fx('land'); }
     }
@@ -2151,7 +2156,7 @@
   // ---------- Boucle ----------
   var lastFrame = performance.now();
   function updateCreature(dt) {
-    if (!cre.x) { cre.x = cre.tx = W / 2; }
+    if (!cre.x) { cre.x = cre.tx = playCx; }
     var si = stageOf(st);
     if (st) {
       if (cre.stage < 0 || si < cre.stage || (si > cre.stage && !started)) cre.stage = si;
@@ -2178,7 +2183,7 @@
 
     if (cre.travel) { cre.walking = false; updateTravel(dt); return; }
     // Balade gauche / droite
-    var range = Math.min(W * 0.28, 70);
+    var half = (SPRITES[sprKey(Math.max(0, cre.stage))] || { gw: 48 }).gw * C / 2, range = Math.max(0, Math.min(playR * 0.28, 70, playR / 2 - half - 4));
     if (cre.dash > 0) cre.dash -= dt;
     var busy = reduce || !st || st.dead || asleep() || cre.evo > 0 || cre.eat > 0 || (cre.jy > 0 && cre.dash <= 0) || parts.some(function (p) { return p.k === 'pizza'; });
     // Animation au hasard toutes les 15 à 40 s, seulement si la créature ne fait rien d'autre et que la page est visible
@@ -2191,11 +2196,11 @@
     if (asleep() && Math.random() < dt * 0.8) spawnZ(1);
     if (!busy && cre.dash <= 0 && cre.wait > 0 && st.fit > 80 && Math.random() < dt * 0.12) jump(80);
     if (!busy) {
-      if (cre.dash > 0) { cre.wait = 0; if (Math.abs(cre.tx - cre.x) < 2) cre.tx = cre.x < W / 2 ? W / 2 + range : W / 2 - range; }
+      if (cre.dash > 0) { cre.wait = 0; if (Math.abs(cre.tx - cre.x) < 2) cre.tx = cre.x < playCx ? playCx + range : playCx - range; }
       if (cre.wait > 0) cre.wait -= dt;
       else {
         var d = cre.tx - cre.x;
-        if (Math.abs(d) < 1) { cre.wait = 1.5 + Math.random() * 4; cre.tx = W / 2 + (Math.random() * 2 - 1) * range; }
+        if (Math.abs(d) < 1) { cre.wait = 1.5 + Math.random() * 4; cre.tx = playCx + (Math.random() * 2 - 1) * range; }
         else {
           var sp = cre.dash > 0 ? 70 : (moodOf(st) === 'sad' || st.fit < 25 || st.sleep < 20) ? 7 : 15;
           cre.x += Math.sign(d) * Math.min(Math.abs(d), sp * dt); cre.dir = d > 0 ? 1 : -1;
@@ -2203,7 +2208,7 @@
         }
       }
     }
-    if (!(cre.emote && cre.emote.k === 'sprint')) cre.x = Math.max(24 * C, Math.min(W - 24 * C, cre.x));
+    if (!(cre.emote && cre.emote.k === 'sprint')) cre.x = Math.max(24 * C, Math.min(Math.max(24 * C, playR - half), cre.x));
   }
   function update(dt) {
     T += dt;
