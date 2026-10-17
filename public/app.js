@@ -3221,7 +3221,7 @@
     $('hatch').querySelector('.lbl').textContent = wait > 0 ? 'UN ŒUF ARRIVE… ' + Math.ceil(wait / 1000) + ' S' : 'FAIRE ÉCLORE UN ŒUF';
 
     renderLog();
-    $('nickBtn').textContent = st.me ? st.me.nick.toUpperCase() : '…';
+    $('nickBtn').textContent = st.me ? ((st.me.badges || []).join('') + ' ' + st.me.nick.toUpperCase()).trim() : '…';
     if (st.me) $('achBtn').textContent = 'HAUTS FAITS ' + st.me.achCount + '/' + st.me.achTotal;
     $('ticker').textContent = st.events[0] ? '» ' + st.events[0].text : '';
 
@@ -3238,12 +3238,14 @@
   var logKey = '';
   function renderLog() {
     var ul = $('log'), evs = st.events.slice(0, 12);
-    var key = evs.map(function (e) { return e.id + ':' + e.likes + ':' + (e.liked ? 1 : 0); }).join(',');
+    var key = evs.map(function (e) { return e.id + ':' + e.likes + ':' + (e.liked ? 1 : 0) + ':' + (e.badges || []).join(''); }).join(',');
     if (key !== logKey) {
       logKey = key; ul.textContent = '';
       evs.forEach(function (e) {
         var li = document.createElement('li'), txt = document.createElement('span'), t = document.createElement('time');
-        t.setAttribute('data-ts', e.ts); txt.appendChild(t); txt.appendChild(document.createTextNode(e.text)); li.appendChild(txt);
+        t.setAttribute('data-ts', e.ts); txt.appendChild(t);
+        if (e.badges && e.badges.length) { var bg = document.createElement('b'); bg.className = 'bdg'; bg.textContent = e.badges.join(''); bg.title = 'Héros du jour'; txt.appendChild(bg); }
+        txt.appendChild(document.createTextNode(e.text)); li.appendChild(txt);
         if (e.mine) li.className = 'me';
         if (e.likable) {
           var b = document.createElement('button'), h = document.createElement('i'), n = document.createElement('span');
@@ -3372,6 +3374,19 @@
     chest.appendChild(el('span', '', (q.chest ? '✔ ' : '') + 'COFFRE : TERMINE LES ' + q.list.length + ' QUÊTES'));
     chest.appendChild(el('span', 'pts', q.chest ? 'OUVERT' : done + '/' + q.list.length + ' · +' + q.chestPts + ' PTS'));
     sec.appendChild(chest); box.appendChild(sec);
+    // Héros du jour
+    if (st.heroes) {
+      sec = el('div', 'defsec'); sec.appendChild(el('h3', '', 'HÉROS DU JOUR'));
+      st.heroes.forEach(function (h) {
+        var row = el('div', 'defrow hero' + (h.mine ? ' done' : ''));
+        row.appendChild(el('span', '', h.icon + ' ' + h.name.toUpperCase()));
+        row.appendChild(el('span', 'pts', h.nick ? (h.mine ? 'TOI · ' : h.nick.toUpperCase() + ' · ') + h.n : 'LIBRE · ' + h.min + ' MINI'));
+        row.appendChild(el('span', 'defnote', h.desc.toUpperCase()));
+        sec.appendChild(row);
+      });
+      sec.appendChild(el('p', 'defnote', 'LE BADGE S’AFFICHE À CÔTÉ DE TON PSEUDO DANS LE JOURNAL. DÉPASSE LE TITULAIRE POUR LUI PRENDRE SA PLACE ! CEUX QUI TIENNENT LEUR RÔLE JUSQU’À MINUIT GAGNENT +25 PTS.'));
+      box.appendChild(sec);
+    }
     // Objectif collectif
     sec = el('div', 'defsec'); sec.appendChild(el('h3', '', 'OBJECTIF COLLECTIF'));
     var gr = el('div', 'defrow defgoal' + (g.done ? ' done' : ''));

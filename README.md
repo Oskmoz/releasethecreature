@@ -18,6 +18,7 @@ Une seule créature en pixel art, partagée en direct par tous les visiteurs. No
 - **3 mini-jeux** qui apparaissent de temps en temps : Attrape-miam, Tape-cornichons et Danse-rythme.
 - **Une boutique** avec des points à gagner en jouant : voyages (montagne, plage, espace, ville), couleurs, accessoires et œuf mystère.
 - **Des défis chaque jour** : une série de jours consécutifs avec bonus croissant, 3 quêtes du jour avec un coffre à la clé, et un objectif collectif qui fait apparaître une aurore boréale quand tout le monde y arrive.
+- **Des héros du jour** : 8 rôles (MVP, chef, câlineur, sauveur, roi de l'arcade…) pour le meilleur de la journée, avec un badge à côté du pseudo dans le journal et une prime à minuit.
 - **Un album de collection** : espèces rencontrées, couleurs et accessoires aperçus, chaque palier donnant un haut fait.
 - **Des dizaines de hauts faits**, dont certains secrets.
 - **Un Panthéon** des créatures qui ont vécu le plus longtemps, et des classements des joueurs.

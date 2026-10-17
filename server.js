@@ -248,6 +248,7 @@ const ACHIEVEMENTS = [
   ...series('accsSeen', [[3, 'Garde-robe', 'Voir 3 accessoires dans l’album', 15], [Object.keys(ACCESSORIES).length, 'Collectionneur de chapeaux', 'Voir tous les accessoires dans l’album', 60, true]]),
   ...series('streakBest', [[3, 'Habitué du matin', 'Revenir 3 jours de suite', 15], [7, 'Une semaine entière', 'Revenir 7 jours de suite', 50, true], [30, 'Inséparables', 'Revenir 30 jours de suite', 200, true]]),
   ...series('questsDone', [[1, 'Bon élève', 'Terminer une quête du jour', 5], [25, 'Employé du mois', 'Terminer 25 quêtes du jour', 40], [100, 'Chasseur de primes', 'Terminer 100 quêtes du jour', 100, true]]),
+  ...series('heroDays', [[1, 'Héros d’un jour', 'Tenir un rôle de héros jusqu’à la fin de la journée', 30], [10, 'Légende vivante', 'Être héros du jour 10 fois', 150, true]]),
   ...series('goalsDone', [[1, 'Esprit d’équipe', 'Participer à un objectif collectif réussi', 10], [10, 'Pilier de la communauté', 'Participer à 10 objectifs collectifs réussis', 75, true]]),
   ...series('morphs', [[1, 'Métamorphose', 'Transformer la bête en une autre espèce', 25], [5, 'Savant fou', 'Faire 5 métamorphoses', 75, true]]),
   ...series('nicks', [[1, 'Nouvelle identité', 'Changer de pseudo', 5]], true),
@@ -280,7 +281,7 @@ function newCreature(now, best) {
     zeroAt: null, deadAt: null, hatchableAt: null, actions: 0,
     asleepUntil: 0, place: null, color: 'orange', acc: {},
     lastBuy: {}, best: best || null, events: [], eventSeq: (state && state.eventSeq) || 0,
-    hall: (state && state.hall) || [], goal: (state && state.goal) || null, hatchedBy: null
+    hall: (state && state.hall) || [], goal: (state && state.goal) || null, heroes: (state && state.heroes) || null, hatchedBy: null
   };
 }
 
@@ -402,11 +403,11 @@ function view(now, vid) {
     actions: s.actions, best: s.best, tampered: !!s.tampered, now, cooldownMs: COOLDOWN_MS,
     events: s.events.map((e) => ({
       id: e.id, ts: e.ts, text: e.text, likes: e.likers.length,
-      likable: !!e.author, mine: !!vid && e.author === vid, liked: !!vid && e.likers.includes(vid)
+      likable: !!e.author, mine: !!vid && e.author === vid, liked: !!vid && e.likers.includes(vid), badges: e.author ? badgesOf(e.author, now) : []
     })),
     nickParts: { nouns: NICK_NOUNS, adjs: NICK_ADJS },
     asleepUntil: s.asleepUntil, place: s.place, color: s.color, acc: s.acc,
-    goal: goalPublic(now), buyCooldown: {}, shop: SHOP, ga: GA_ID, me: v ? { pts: v.pts, nick: v.nick, achCount: Object.keys(v.ach || {}).length, achTotal: ACHIEVEMENTS.length, achNew: takeNewAch(v), tapLeft: tapLeft(v, now), notes: takeNotes(v), ...bonusInfo(v, now), ...dailyInfo(v, vid, now) } : null, dev: DEV
+    goal: goalPublic(now), heroes: heroList(now, vid), buyCooldown: {}, shop: SHOP, ga: GA_ID, me: v ? { pts: v.pts, nick: v.nick, achCount: Object.keys(v.ach || {}).length, achTotal: ACHIEVEMENTS.length, achNew: takeNewAch(v), tapLeft: tapLeft(v, now), notes: takeNotes(v), badges: badgesOf(vid, now),...bonusInfo(v, now), ...dailyInfo(v, vid, now) } : null, dev: DEV
   };
   for (const k of STATS) out[k] = Math.round(s[k]);
   for (const c in BUY_COOLDOWN) out.buyCooldown[c] = (s.lastBuy[c] || 0) + BUY_COOLDOWN[c];
@@ -430,6 +431,7 @@ function visitor(id, now, req) {
     c.n++;
     v = visitors[id] = { pts: PTS_WELCOME, seen: now, lastPing: 0, day: '', dayPts: 0 };
   }
+  v.id = id;
   if (!v.nick) v.nick = makeNick(pick(NICK_NOUNS), pick(NICK_ADJS));
   v.seen = now;
   return v;
@@ -610,6 +612,7 @@ function track(v, stat, inc, now) {
   v.st[stat] = (v.st[stat] || 0) + (inc === undefined ? 1 : inc);
   if (stat === 'earned') return checkAch(v, now);
   questProgress(v, stat, inc === undefined ? 1 : inc, now || Date.now());
+  heroProgress(v, stat, inc === undefined ? 1 : inc, now || Date.now());
   checkAch(v, now);
 }
 // Première rencontre de ce visiteur avec l'espèce de la créature actuelle (vivante)
@@ -783,6 +786,64 @@ function goalContribute(v, vid, stat, now) {
     for (const id in g.by) goalPay(g, id, now);
   } else if (g.done) goalPay(g, vid, now);
 }
+// --- Héros du jour : le meilleur de la journée dans chaque domaine porte un badge (journal, pseudo) ---
+const HERO_ROLES = [
+  { id: 'mvp', stat: 'actions', icon: '👑', name: 'MVP du jour', min: 6, desc: 'le plus d’actions' },
+  { id: 'chef', stat: 'feed', icon: '🍕', name: 'Chef du jour', min: 3, desc: 'le plus de repas servis' },
+  { id: 'cal', stat: 'pet', icon: '💖', name: 'Câlineur du jour', min: 3, desc: 'le plus de câlins' },
+  { id: 'wash', stat: 'wash', icon: '🧼', name: 'Lavandier du jour', min: 3, desc: 'le plus de bains' },
+  { id: 'coach', stat: 'play', icon: '🎾', name: 'Coach du jour', min: 3, desc: 'le plus de jeux' },
+  { id: 'sand', stat: 'rock', icon: '🌙', name: 'Marchand de sable', min: 3, desc: 'le plus de berceuses' },
+  { id: 'saver', stat: 'feedHungry', icon: '🚑', name: 'Sauveur du jour', min: 1, desc: 'le plus de repas donnés à une bête affamée' },
+  { id: 'arcade', stat: 'gamePts', icon: '🕹️', name: 'Roi de l’arcade', min: 15, desc: 'le plus de points aux mini-jeux' }
+];
+const HERO_PTS = 25, HERO_SAY_MS = 10 * MIN;
+// Le jour change : les héros d'hier touchent leur prime, puis on repart de zéro
+function ensureHeroes(now) {
+  const day = today(now);
+  if (state.heroes && state.heroes.day === day) return state.heroes;
+  const prev = state.heroes;
+  state.heroes = { day, roles: {}, said: {} };
+  if (prev) for (const r of HERO_ROLES) {
+    const h = prev.roles[r.id], w = h && own(visitors, h.id);
+    if (!w) continue;
+    earn(w, HERO_PTS, now);
+    note(w, 'HÉROS D’HIER', r.icon + ' ' + r.name, 'Tu as tenu le rôle jusqu’à minuit', HERO_PTS);
+    track(w, 'heroDays', 1, now);
+  }
+  return state.heroes;
+}
+function heroProgress(v, stat, inc, now) {
+  const roles = HERO_ROLES.filter((r) => r.stat === stat);
+  if (!roles.length || !v.id || v.admin) return;
+  const h = ensureHeroes(now);
+  if (!v.d || v.d.day !== h.day) v.d = { day: h.day, c: {} };
+  const n = v.d.c[stat] = (v.d.c[stat] || 0) + inc;
+  for (const r of roles) {
+    if (n < r.min) continue;
+    const cur = h.roles[r.id];
+    if (cur && cur.id === v.id) { cur.n = n; continue; }
+    if (cur && n <= cur.n) continue; // il faut battre le titulaire, l'égalité ne suffit pas
+    h.roles[r.id] = { id: v.id, n };
+    if (now - (h.said[r.id] || 0) >= HERO_SAY_MS) { // pas de spam si deux joueurs se disputent le titre
+      h.said[r.id] = now;
+      addEvent(r.icon + ' ' + actor(v) + ' devient ' + r.name + ' !', now, null);
+    }
+  }
+}
+function badgesOf(id, now) {
+  const h = state.heroes;
+  if (!h || h.day !== today(now)) return [];
+  return HERO_ROLES.filter((r) => h.roles[r.id] && h.roles[r.id].id === id).map((r) => r.icon);
+}
+function heroList(now, vid) {
+  const h = ensureHeroes(now);
+  return HERO_ROLES.map((r) => {
+    const c = h.roles[r.id], w = c && own(visitors, c.id);
+    return { id: r.id, icon: r.icon, name: r.name, desc: r.desc, min: r.min, nick: w ? w.nick : null, n: c ? c.n : 0, mine: !!c && c.id === vid };
+  });
+}
+
 function goalPublic(now) { const g = ensureGoal(now); return { stat: g.stat, label: g.label, target: g.target, count: g.count, done: g.done }; }
 function dailyInfo(v, vid, now) {
   const day = today(now), q = questState(v, now), s = v.streak || { n: 0, last: '', best: 0 };
