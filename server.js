@@ -550,6 +550,7 @@ function act(req, res, kind) {
   lastAction.set(ip, now);
   state.actions++;
   const a = ACTIONS[kind], stat = a.stat || lowestStat();
+  let refused = null; // jauge déjà (presque) pleine : l'action est refusée et ne compte ni points, ni quêtes, ni objectif
   // Hauts faits « spéciaux » : on regarde l'état AVANT l'action
   if (v && kind === 'feed' && state.food < 25) track(v, 'feedHungry', 1, now);
   if (v && kind === 'feed' && state.food < 8) track(v, 'feedDying', 1, now);
@@ -559,6 +560,7 @@ function act(req, res, kind) {
   if (state[stat] > (a.stat ? 92 : 80)) {
     state.joy = clamp(state.joy - 8);
     addEvent(fill(pick(a.full)), now);
+    refused = stat;
   } else {
     state[stat] = clamp(state[stat] + a.gain);
     for (const k in a.side) state[k] = clamp(state[k] + a.side[k]);
@@ -569,7 +571,7 @@ function act(req, res, kind) {
     if (v) { v.acted = true; earn(v, PTS_ACTION, now); track(v, kind, 1, now); track(v, 'actions', 1, now); goalContribute(v, vid, kind, now); }
   }
   save();
-  send(res, 200, { gained: v ? PTS_ACTION : 0, ...view(now, vid) });
+  send(res, 200, { gained: v && !refused ? PTS_ACTION : 0, refused, ...view(now, vid) });
 }
 
 function hatch(req, res) {

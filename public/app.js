@@ -3373,7 +3373,9 @@
     var chest = el('div', 'defrow' + (q.chest ? ' done' : ''));
     chest.appendChild(el('span', '', (q.chest ? '✔ ' : '') + 'COFFRE : TERMINE LES ' + q.list.length + ' QUÊTES'));
     chest.appendChild(el('span', 'pts', q.chest ? 'OUVERT' : done + '/' + q.list.length + ' · +' + q.chestPts + ' PTS'));
-    sec.appendChild(chest); box.appendChild(sec);
+    sec.appendChild(chest);
+    sec.appendChild(el('p', 'defnote', 'SEULES LES ACTIONS UTILES COMPTENT : SI LA JAUGE VISÉE EST DÉJÀ QUASI PLEINE, LA BÊTE REFUSE ET RIEN NE COMPTE (POINTS, QUÊTES, OBJECTIF). REGARDE SES JAUGES AVANT DE CLIQUER !'));
+    box.appendChild(sec);
     // Héros du jour
     if (st.heroes) {
       sec = el('div', 'defsec'); sec.appendChild(el('h3', '', 'HÉROS DU JOUR'));
@@ -3783,8 +3785,13 @@
     }
   };
 
+  // Action refusée par la bête (jauge déjà pleine) : on explique pourquoi elle ne compte pas
+  var REFUSED_MSG = {
+    food: 'Elle n’a plus faim.', joy: 'Elle est déjà au comble du bonheur.', clean: 'Elle est déjà toute propre.',
+    fit: 'Elle est déjà en pleine forme.', sleep: 'Elle n’a pas sommeil.'
+  };
   function act(kind) {
-    if (!started || !st || shopOpen || nickOpen || achOpen || hallOpen || (game && game.live)) return;
+    if (!started || !st || shopOpen || nickOpen || achOpen || hallOpen || defOpen || albOpen || (game && game.live)) return;
     if (kind === 'hatch' ? !st.dead : st.dead) return;
     press(kind);
     var left = lastAct + COOLDOWN - Date.now();
@@ -3804,6 +3811,7 @@
       }
       if (r.code === 200 && r.body.gained) parts.push({ k: 'txt', text: '+' + r.body.gained + ' PTS', col: '#ffe25e', x: cre.x + 20 * C, y: mouth.top, vx: 0, vy: -18, gr: 0, life: 1.6 });
       if (r.code === 200 && r.body.events && r.body.events[0]) setDialog('INFO', r.body.events[0].text, 6000, true);
+      if (r.code === 200 && r.body.refused && REFUSED_MSG[r.body.refused]) setDialog('INFO', REFUSED_MSG[r.body.refused] + ' Ça ne compte pas pour les points, les quêtes ni l’objectif.', 8000, true);
       // Aucun événement signé de moi à cet instant = la créature a refusé (jauge déjà pleine)
       if (r.code === 200 && kind !== 'hatch' && r.body.events && r.body.events[0]) {
         var ts0 = r.body.events[0].ts;
