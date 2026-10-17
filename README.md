@@ -17,6 +17,8 @@ Une seule créature en pixel art, partagée en direct par tous les visiteurs. No
 - **8 espèces** tirées au hasard à chaque éclosion : dino, phénix, renard mystique, lézard géant, gorgone, lapin de combat, requin des terres… et un dieu-faucon épique, beaucoup plus rare.
 - **3 mini-jeux** qui apparaissent de temps en temps : Attrape-miam, Tape-cornichons et Danse-rythme.
 - **Une boutique** avec des points à gagner en jouant : voyages (montagne, plage, espace, ville), couleurs, accessoires et œuf mystère.
+- **Des défis chaque jour** : une série de jours consécutifs avec bonus croissant, 3 quêtes du jour avec un coffre à la clé, et un objectif collectif qui fait apparaître une aurore boréale quand tout le monde y arrive.
+- **Un album de collection** : espèces rencontrées, couleurs et accessoires aperçus, chaque palier donnant un haut fait.
 - **Des dizaines de hauts faits**, dont certains secrets.
 - **Un Panthéon** des créatures qui ont vécu le plus longtemps, et des classements des joueurs.
 - **Un journal en direct** des actions de chacun, avec des likes.
@@ -28,6 +30,8 @@ Une seule créature en pixel art, partagée en direct par tous les visiteurs. No
 | --- | --- |
 | `1` à `6` | Nourrir, câliner, laver, jouer, bercer, soigner |
 | `S` | Boutique |
+| `D` | Défis du jour |
+| `L` | Album |
 | `H` | Hauts faits |
 | `T` | Top 10 |
 | `P` | Changer de pseudo |

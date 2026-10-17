@@ -244,6 +244,11 @@ const ACHIEVEMENTS = [
   ...series('best_catch', [[25, 'Estomac sur pattes', 'Faire 25 à Attrape-miam', 20]]),
   ...series('best_mole', [[25, 'Main de fer', 'Faire 25 à Tape-cornichons', 20]]),
   ...series('best_rhythm', [[50, 'Roi de la piste', 'Faire 50 à Danse-rythme', 20]]),
+  ...series('colorsSeen', [[3, 'Arc-en-ciel', 'Voir 3 couleurs dans l’album', 15], [6, 'Palette complète', 'Voir toutes les couleurs dans l’album', 60, true]]),
+  ...series('accsSeen', [[3, 'Garde-robe', 'Voir 3 accessoires dans l’album', 15], [Object.keys(ACCESSORIES).length, 'Collectionneur de chapeaux', 'Voir tous les accessoires dans l’album', 60, true]]),
+  ...series('streakBest', [[3, 'Habitué du matin', 'Revenir 3 jours de suite', 15], [7, 'Une semaine entière', 'Revenir 7 jours de suite', 50, true], [30, 'Inséparables', 'Revenir 30 jours de suite', 200, true]]),
+  ...series('questsDone', [[1, 'Bon élève', 'Terminer une quête du jour', 5], [25, 'Employé du mois', 'Terminer 25 quêtes du jour', 40], [100, 'Chasseur de primes', 'Terminer 100 quêtes du jour', 100, true]]),
+  ...series('goalsDone', [[1, 'Esprit d’équipe', 'Participer à un objectif collectif réussi', 10], [10, 'Pilier de la communauté', 'Participer à 10 objectifs collectifs réussis', 75, true]]),
   ...series('morphs', [[1, 'Métamorphose', 'Transformer la bête en une autre espèce', 25], [5, 'Savant fou', 'Faire 5 métamorphoses', 75, true]]),
   ...series('nicks', [[1, 'Nouvelle identité', 'Changer de pseudo', 5]], true),
   ...series('presence', [[10, 'Spectateur', 'Passer 10 minutes sur le site', 5], [60, 'Fidèle au poste', 'Passer 1 heure sur le site', 20], [600, 'Résident', 'Passer 10 heures sur le site', 75, true]]),
@@ -275,7 +280,7 @@ function newCreature(now, best) {
     zeroAt: null, deadAt: null, hatchableAt: null, actions: 0,
     asleepUntil: 0, place: null, color: 'orange', acc: {},
     lastBuy: {}, best: best || null, events: [], eventSeq: (state && state.eventSeq) || 0,
-    hall: (state && state.hall) || [], hatchedBy: null
+    hall: (state && state.hall) || [], goal: (state && state.goal) || null, hatchedBy: null
   };
 }
 
@@ -401,7 +406,7 @@ function view(now, vid) {
     })),
     nickParts: { nouns: NICK_NOUNS, adjs: NICK_ADJS },
     asleepUntil: s.asleepUntil, place: s.place, color: s.color, acc: s.acc,
-    buyCooldown: {}, shop: SHOP, ga: GA_ID, me: v ? { pts: v.pts, nick: v.nick, achCount: Object.keys(v.ach || {}).length, achTotal: ACHIEVEMENTS.length, achNew: takeNewAch(v), tapLeft: tapLeft(v, now), ...bonusInfo(v, now) } : null, dev: DEV
+    goal: goalPublic(now), buyCooldown: {}, shop: SHOP, ga: GA_ID, me: v ? { pts: v.pts, nick: v.nick, achCount: Object.keys(v.ach || {}).length, achTotal: ACHIEVEMENTS.length, achNew: takeNewAch(v), tapLeft: tapLeft(v, now), notes: takeNotes(v), ...bonusInfo(v, now), ...dailyInfo(v, vid, now) } : null, dev: DEV
   };
   for (const k of STATS) out[k] = Math.round(s[k]);
   for (const c in BUY_COOLDOWN) out.buyCooldown[c] = (s.lastBuy[c] || 0) + BUY_COOLDOWN[c];
@@ -548,6 +553,7 @@ function act(req, res, kind) {
   if (v && kind === 'feed' && state.food < 8) track(v, 'feedDying', 1, now);
   if (v && kind !== 'rock' && state.asleepUntil > now) track(v, 'wakeUp', 1, now);
   meet(v, now);
+  if (v) streakTick(v, now);
   if (state[stat] > (a.stat ? 92 : 80)) {
     state.joy = clamp(state.joy - 8);
     addEvent(fill(pick(a.full)), now);
@@ -558,7 +564,7 @@ function act(req, res, kind) {
     if (a.nap) state.asleepUntil = now + NAP_MS;
     else if (state.asleepUntil > now) state.asleepUntil = now; // on le réveille
     addEvent(actor(v) + ' ' + fill(pick(a.msgs)), now, vid);
-    if (v) { v.acted = true; earn(v, PTS_ACTION, now); track(v, kind, 1, now); track(v, 'actions', 1, now); }
+    if (v) { v.acted = true; earn(v, PTS_ACTION, now); track(v, kind, 1, now); track(v, 'actions', 1, now); goalContribute(v, vid, kind, now); }
   }
   save();
   send(res, 200, { gained: v ? PTS_ACTION : 0, ...view(now, vid) });
@@ -584,6 +590,7 @@ function hatch(req, res) {
 function ping(req, res) {
   const now = Date.now(), vid = visitorId(req), v = visitor(vid, now, req);
   let gained = 0;
+  if (v) streakTick(v, now);
   if (v && now - v.lastPing >= 55 * 1000) {
     const day = new Date(now).toISOString().slice(0, 10);
     if (v.day !== day) { v.day = day; v.dayPts = 0; }
@@ -602,14 +609,23 @@ function track(v, stat, inc, now) {
   v.st = v.st || {};
   v.st[stat] = (v.st[stat] || 0) + (inc === undefined ? 1 : inc);
   if (stat === 'earned') return checkAch(v, now);
+  questProgress(v, stat, inc === undefined ? 1 : inc, now || Date.now());
   checkAch(v, now);
 }
 // Première rencontre de ce visiteur avec l'espèce de la créature actuelle (vivante)
 function meet(v, now) {
   if (!v || state.deadAt) return;
   v.met = v.met || {};
+  // Album : couleurs et accessoires vus, plus haut niveau vu par espèce
+  const al = v.album = v.album || { lvl: {}, colors: {}, acc: {} };
+  al.lvl[state.species] = Math.max(al.lvl[state.species] || 0, albumLevel(now - state.born));
+  if (!al.colors[state.color]) { al.colors[state.color] = 1; track(v, 'colorsSeen', 1, now); }
+  for (const slot in state.acc) {
+    const k = state.acc[slot];
+    if (k && !al.acc[k]) { al.acc[k] = 1; track(v, 'accsSeen', 1, now); }
+  }
   if (v.met[state.species]) return;
-  v.met[state.species] = 1;
+  v.met[state.species] = now;
   track(v, 'met_' + state.species, 1, now);
   track(v, 'species', 1, now);
 }
@@ -648,6 +664,150 @@ function achievements(req, res) {
 }
 
 function today(now) { return new Date(now).toISOString().slice(0, 10); }
+
+// --- Défis du jour : série, quêtes, objectif collectif (tout bascule à minuit UTC, comme les plafonds quotidiens) ---
+const dayNum = (now) => Math.floor(now / (24 * H));
+const hashDay = (n, salt) => { let x = Math.imul(n + salt * 7919, 2654435761) >>> 0; x ^= x >>> 15; x = Math.imul(x, 2246822519) >>> 0; x ^= x >>> 13; return x >>> 0; };
+const STREAK_BASE = 10, STREAK_STEP = 5, STREAK_MAXSTEP = 8; // 10 pts le 1er jour, +5 par jour de série, jusqu'à 50
+const STREAK_WEEK_BONUS = 50;                                 // tous les 7 jours de suite
+const QUEST_POOL = [
+  { id: 'feed', stat: 'feed', n: 3, text: 'Nourrir la bête 3 fois' },
+  { id: 'pet', stat: 'pet', n: 3, text: 'Câliner la bête 3 fois' },
+  { id: 'wash', stat: 'wash', n: 2, text: 'Laver la bête 2 fois' },
+  { id: 'play', stat: 'play', n: 3, text: 'Jouer avec la bête 3 fois' },
+  { id: 'rock', stat: 'rock', n: 2, text: 'Bercer la bête 2 fois' },
+  { id: 'heal', stat: 'heal', n: 2, text: 'Soigner la bête 2 fois' },
+  { id: 'actions', stat: 'actions', n: 8, text: 'Faire 8 actions au total' },
+  { id: 'bonus', stat: 'bonus', n: 1, text: 'Attraper un passant bonus' },
+  { id: 'games', stat: 'games', n: 2, text: 'Jouer à 2 mini-jeux' },
+  { id: 'gamePts', stat: 'gamePts', n: 30, text: 'Gagner 30 pts aux mini-jeux' },
+  { id: 'taps', stat: 'taps', n: 100, text: 'Toucher l’écran 100 fois' },
+  { id: 'likes', stat: 'likesGiven', n: 3, text: 'Aimer 3 actions d’autres joueurs' },
+  { id: 'presence', stat: 'presence', n: 15, text: 'Rester 15 minutes sur le site' }
+];
+const QUEST_COUNT = 3, QUEST_PTS = 20, QUEST_CHEST_PTS = 40;
+function questsOf(now) {
+  const pool = QUEST_POOL.slice(), n = dayNum(now), out = [];
+  for (let i = 0; i < QUEST_COUNT; i++) out.push(pool.splice(hashDay(n, i + 1) % pool.length, 1)[0]);
+  return out;
+}
+const GOAL_KINDS = [
+  { stat: 'pet', label: 'câlins' }, { stat: 'feed', label: 'repas' }, { stat: 'wash', label: 'bains' },
+  { stat: 'play', label: 'parties' }, { stat: 'rock', label: 'berceuses' }, { stat: 'actions', label: 'soins' }
+];
+const GOAL_PTS = 30;
+const GOAL_PER_PLAYER = 4, GOAL_MIN = 15, GOAL_MAX = 600;
+
+function note(v, head, name, desc, pts) {
+  v.notes = v.notes || [];
+  if (v.notes.length < 10) v.notes.push({ head, name, desc, pts: pts || 0 });
+}
+function takeNotes(v) {
+  if (!v.notes || !v.notes.length) return [];
+  const out = v.notes;
+  v.notes = [];
+  save();
+  return out;
+}
+
+// Série : un jour de plus à la première activité de la journée, remise à 1 si on a raté un jour
+function streakTick(v, now) {
+  const day = today(now), s = v.streak = v.streak || { n: 0, last: '', best: 0 };
+  if (s.last === day) return;
+  s.n = s.last === today(now - 24 * H) ? s.n + 1 : 1;
+  s.last = day; s.best = Math.max(s.best, s.n);
+  v.acted = true;
+  const pts = STREAK_BASE + STREAK_STEP * Math.min(s.n - 1, STREAK_MAXSTEP) + (s.n % 7 === 0 ? STREAK_WEEK_BONUS : 0);
+  earn(v, pts, now);
+  note(v, 'SÉRIE · JOUR ' + s.n, s.n === 1 ? 'Bienvenue !' : s.n + ' jours de suite', s.n % 7 === 0 ? 'Bonus de semaine complète' : 'Reviens demain pour continuer la série', pts);
+  v.st.streakBest = Math.max(v.st.streakBest || 0, s.n);
+  checkAch(v, now);
+  save();
+}
+const streakNext = (n) => STREAK_BASE + STREAK_STEP * Math.min(n, STREAK_MAXSTEP) + ((n + 1) % 7 === 0 ? STREAK_WEEK_BONUS : 0);
+
+// Quêtes : compteurs du jour, remis à zéro quand la date change
+function questState(v, now) {
+  const day = today(now);
+  if (!v.q || v.q.day !== day) v.q = { day, c: {}, done: {}, chest: false };
+  return v.q;
+}
+function questProgress(v, stat, inc, now) {
+  const defs = questsOf(now);
+  if (!defs.some((d) => d.stat === stat)) return;
+  const q = questState(v, now);
+  for (const d of defs) {
+    if (d.stat !== stat || q.done[d.id]) continue;
+    q.c[d.id] = Math.min(d.n, (q.c[d.id] || 0) + inc);
+    if (q.c[d.id] < d.n) continue;
+    q.done[d.id] = 1;
+    earn(v, QUEST_PTS, now);
+    note(v, 'QUÊTE TERMINÉE', d.text, '', QUEST_PTS);
+    track(v, 'questsDone', 1, now);
+  }
+  if (!q.chest && defs.every((d) => q.done[d.id])) {
+    q.chest = true;
+    earn(v, QUEST_CHEST_PTS, now);
+    note(v, 'COFFRE DU JOUR', 'Toutes les quêtes sont faites !', 'Reviens demain pour de nouvelles quêtes', QUEST_CHEST_PTS);
+  }
+}
+
+// Objectif collectif : un par jour, chacun y contribue par ses actions, tous les contributeurs touchent la récompense
+function ensureGoal(now) {
+  const day = today(now);
+  if (state.goal && state.goal.day === day) return state.goal;
+  const kind = GOAL_KINDS[hashDay(dayNum(now), 99) % GOAL_KINDS.length];
+  const actives = Object.values(visitors).filter((x) => x.acted && x.seen > now - 48 * H).length;
+  const per = GOAL_PER_PLAYER * (kind.stat === 'actions' ? 2 : 1);
+  state.goal = { day, stat: kind.stat, label: kind.label, target: Math.max(GOAL_MIN, Math.min(GOAL_MAX, actives * per)), count: 0, done: false, by: {}, paid: {} };
+  return state.goal;
+}
+function goalPay(g, id, now) {
+  if (g.paid[id]) return;
+  g.paid[id] = 1;
+  const w = own(visitors, id);
+  if (!w) return;
+  earn(w, GOAL_PTS, now);
+  track(w, 'goalsDone', 1, now);
+  note(w, 'OBJECTIF ATTEINT', 'Tous ensemble : ' + g.target + ' ' + g.label + ' !', 'Une aurore boréale illumine la bête', GOAL_PTS);
+}
+function goalContribute(v, vid, stat, now) {
+  if (!v || !vid) return;
+  const g = ensureGoal(now);
+  if (g.stat !== 'actions' && g.stat !== stat) return;
+  g.count++;
+  g.by[vid] = (g.by[vid] || 0) + 1;
+  if (!g.done && g.count >= g.target) {
+    g.done = true;
+    addEvent('Objectif du jour atteint : ' + g.target + ' ' + g.label + ' ! Une aurore boréale illumine la bête.', now);
+    for (const id in g.by) goalPay(g, id, now);
+  } else if (g.done) goalPay(g, vid, now);
+}
+function goalPublic(now) { const g = ensureGoal(now); return { stat: g.stat, label: g.label, target: g.target, count: g.count, done: g.done }; }
+function dailyInfo(v, vid, now) {
+  const day = today(now), q = questState(v, now), s = v.streak || { n: 0, last: '', best: 0 };
+  const alive = s.last === day || s.last === today(now - 24 * H);
+  const g = ensureGoal(now);
+  return {
+    streak: { n: alive ? s.n : 0, best: s.best, today: s.last === day, next: streakNext(alive ? s.n : 0) },
+    quests: { list: questsOf(now).map((d) => ({ id: d.id, text: d.text, n: d.n, c: q.c[d.id] || 0, done: !!q.done[d.id], pts: QUEST_PTS })), chest: q.chest, chestPts: QUEST_CHEST_PTS },
+    goal: { stat: g.stat, label: g.label, target: g.target, count: g.count, done: g.done, mine: g.by[vid] || 0, pts: GOAL_PTS, players: Object.keys(g.by).length }
+  };
+}
+
+// Album : espèces rencontrées (avec le plus haut niveau vu), couleurs et accessoires aperçus
+const ALBUM_H = [0, 0.25, 0.75, 1.5, 3, 6, 12, 24, 48, 96];
+for (let lh = 11; lh <= 50; lh++) ALBUM_H.push(96 + (lh - 10) * 12);
+const albumLevel = (ms) => ALBUM_H.filter((h) => ms >= h * H).length;
+function album(req, res) {
+  const vid = visitorId(req), v = vid && own(visitors, vid), al = (v && v.album) || { lvl: {}, colors: {}, acc: {} }, met = (v && v.met) || {};
+  send(res, 200, {
+    species: Object.keys(SPECIES).map((k) => ({ id: k, epic: !!EPIC[k], met: met[k] || 0, lvl: al.lvl[k] || 0 })),
+    colors: Object.keys(COLORS).map((k) => ({ id: k, seen: !!al.colors[k] })),
+    acc: Object.keys(ACCESSORIES).map((k) => ({ id: k, name: ACCESSORIES[k].short, seen: !!al.acc[k] })),
+    maxLevel: ALBUM_H.length
+  });
+}
 function bonusInfo(v, now) {
   const left = v.bonusDay === today(now) ? Math.max(0, BONUS_DAILY - (v.bonusCount || 0)) : BONUS_DAILY;
   return { bonusAt: (v.lastBonus || 0) + BONUS_COOLDOWN, bonusLeft: left };
@@ -967,6 +1127,7 @@ function route(req, res) {
       if (!visitorId(req)) return send(res, 400, { error: 'no_visitor' });
     }
     if (req.method === 'GET' && url === '/api/achievements') return achievements(req, res);
+    if (req.method === 'GET' && url === '/api/album') return album(req, res);
     if (req.method === 'GET' && url === '/api/leaders') return leaders(req, res);
     if (req.method === 'GET' && url === '/api/state') { visitor(visitorId(req), Date.now(), req); return send(res, 200, view(Date.now(), visitorId(req))); }
     if (req.method === 'POST') {

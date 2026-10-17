@@ -145,7 +145,7 @@
   .k { display:inline-grid; place-items:center; min-width:24px; height:24px; padding:0 6px; flex:none; border-radius:99px; background:#000; color:#fff; font-size:10px; text-shadow:none; }
 
   /* ---------- BOUTIQUE ---------- */
-  #shop, #nickm, #achm, #hallm { position:fixed; inset:0; display:grid; place-items:center; padding:16px; background:rgba(0,0,0,.6); z-index:3; }
+  #shop, #nickm, #achm, #hallm, #defm, #albm { position:fixed; inset:0; display:grid; place-items:center; padding:16px; background:rgba(0,0,0,.6); z-index:3; }
   .shopbox { width:min(660px, 100%); max-height:86vh; overflow:auto; background:var(--panel); box-shadow:0 0 0 3px #000, 0 0 0 7px #ffe25e, 0 0 0 10px #000; padding:20px 18px; }
   .shophead { display:flex; align-items:center; gap:14px; }
   .shophead h2 { flex:1; margin:0; font-size:clamp(11px, 2vw, 16px); font-weight:400; color:#ffe25e; text-shadow:2px 2px 0 #000; }
@@ -181,7 +181,65 @@
   #achToast small { display:block; font-size:7px; color:#ffd23f; margin-bottom:6px; }
   #achToast b { display:block; font-size:clamp(9px, 1.6vw, 12px); font-weight:400; }
   #achToast i { display:block; font-style:normal; font-size:7px; color:#d8d4ff; margin-top:6px; line-height:1.6; }
-  #achm .shopbox { width:min(760px, 100%); }
+  #achm .shopbox, #albm .shopbox { width:min(760px, 100%); }
+  /* Défis du jour */
+  #defReset { font-size:7px; color:#9a98c6; }
+  .defsec { margin:18px 0 0; }
+  .defsec h3 { margin:0 0 10px; font-size:9px; font-weight:400; color:#5ef2ff; text-shadow:2px 2px 0 #000; }
+  .defrow { display:grid; grid-template-columns:1fr auto; gap:6px 12px; align-items:center; padding:10px 12px; margin-bottom:8px; background:rgba(255,255,255,.05); box-shadow:inset 0 0 0 2px rgba(255,255,255,.12); font-size:8px; line-height:1.8; }
+  .defrow.done { background:rgba(125,255,122,.1); box-shadow:inset 0 0 0 2px #7dff7a; color:#7dff7a; }
+  .defrow .pts { color:#ffd23f; }
+  .defrow .achbar { grid-column:1 / -1; margin-top:0; }
+  .defrow.done .achbar > div { background:#7dff7a; }
+  .defbig { font-size:clamp(14px, 3vw, 22px); color:#ffd23f; text-shadow:2px 2px 0 #000; }
+  .defdots { display:flex; gap:8px; margin:10px 0; }
+  .defdots i { width:18px; height:18px; background:#2a2440; box-shadow:0 0 0 2px #000; }
+  .defdots i.on { background:#ffd23f; }
+  .defnote { margin:6px 0 0; font-size:7px; line-height:1.9; color:#d8d4ff; }
+  .defgoal.done { box-shadow:inset 0 0 0 2px #c86aff; background:rgba(200,106,255,.12); }
+  #goalLine { display:block; width:fit-content; max-width:100%; box-sizing:border-box; margin:8px auto 0; padding:4px 9px; font:inherit; font-size:7px; color:#5ef2ff; background:var(--plate); border:0; box-shadow:0 0 0 2px rgba(0,0,0,.55); text-shadow:1px 1px 0 #000; cursor:pointer; }
+  #goalLine[hidden] { display:none; }
+  #goalLine.done { color:#c86aff; }
+  /* Album */
+  #albGrid { list-style:none; margin:14px 0 0; padding:0; display:grid; grid-template-columns:repeat(auto-fill, minmax(150px, 1fr)); gap:12px; }
+  #albGrid li { display:flex; flex-direction:column; align-items:center; gap:6px; padding:12px 8px; text-align:center; background:rgba(255,255,255,.04); box-shadow:inset 0 0 0 2px rgba(255,255,255,.1); }
+  #albGrid li.got { background:rgba(255,210,63,.1); box-shadow:inset 0 0 0 2px #ffd23f; }
+  #albGrid li.epic.got { box-shadow:inset 0 0 0 2px #c86aff; background:rgba(200,106,255,.12); }
+  #albGrid canvas { width:96px; height:96px; image-rendering:pixelated; }
+  #albGrid b { font-size:8px; font-weight:400; }
+  #albGrid li:not(.got) b { color:#9a98c6; }
+  #albGrid span { font-size:7px; color:#d8d4ff; line-height:1.7; }
+  .albsub { margin:18px 0 0; font-size:9px; color:#5ef2ff; }
+  .albchips { display:flex; flex-wrap:wrap; gap:8px; margin-top:10px; }
+  .albchips span { display:inline-flex; align-items:center; gap:6px; padding:6px 9px; font-size:7px; background:rgba(255,255,255,.04); box-shadow:inset 0 0 0 2px rgba(255,255,255,.1); color:#9a98c6; }
+  .albchips span.got { color:#ffd23f; box-shadow:inset 0 0 0 2px #ffd23f; background:rgba(255,210,63,.1); }
+  /* Aurore boréale : objectif collectif atteint */
+  #aurora::before, #aurora::after { content:''; position:absolute; inset:-5% -10%; filter:blur(5px); transform-origin:50% 0; }
+  #aurora::before { background:repeating-linear-gradient(90deg, transparent 0 14px, rgba(125,255,122,.55) 30px, rgba(94,242,255,.5) 46px, transparent 70px); animation:curtainA 7s ease-in-out infinite alternate; }
+  #aurora::after { background:repeating-linear-gradient(90deg, transparent 0 22px, rgba(200,106,255,.5) 42px, rgba(255,79,200,.35) 58px, transparent 86px); animation:curtainB 11s ease-in-out infinite alternate; }
+  @keyframes curtainA { from { transform:translateX(-4%) skewX(-8deg) scaleY(.85); opacity:.6; } to { transform:translateX(4%) skewX(8deg) scaleY(1.15); opacity:1; } }
+  @keyframes curtainB { from { transform:translateX(5%) skewX(7deg) scaleY(1.1); opacity:1; } to { transform:translateX(-5%) skewX(-7deg) scaleY(.8); opacity:.55; } }
+  #aurora { position:fixed; left:0; right:0; top:0; height:70%; pointer-events:none; opacity:0; transition:opacity 2.5s; mix-blend-mode:screen; z-index:1;
+    background:linear-gradient(100deg, transparent 0%, rgba(94,242,255,.42) 20%, rgba(125,255,122,.45) 40%, rgba(200,106,255,.42) 60%, rgba(94,242,255,.4) 80%, transparent 100%); background-size:200% 100%;
+    -webkit-mask-image:linear-gradient(#000, transparent); mask-image:linear-gradient(#000, transparent); animation:aurora 16s linear infinite; }
+  #aurora.on { opacity:1; }
+  @keyframes aurora { to { background-position:200% 0; } }
+  @media (prefers-reduced-motion:reduce) { #aurora, #aurora::before, #aurora::after { animation:none; } }
+  /* Coffre du jour */
+  #chest { position:fixed; inset:0; z-index:7; display:grid; place-items:center; background:rgba(0,0,0,.55); opacity:0; visibility:hidden; transition:opacity .3s steps(4), visibility .3s; pointer-events:none; }
+  #chest.show { opacity:1; visibility:visible; pointer-events:auto; }
+  #chestBox { position:relative; display:flex; flex-direction:column; align-items:center; gap:18px; }
+  #chestCv { width:min(48vw, 224px); image-rendering:pixelated; animation:chestIn .6s steps(8) both; }
+  #chestCv.shake { animation:chestShake .14s steps(2) 4; }
+  #chestCv.open { animation:chestPop .35s steps(5) both; filter:drop-shadow(0 0 18px #ffd23f); }
+  #chestTxt { font-size:clamp(12px, 3vw, 20px); color:#ffd23f; text-shadow:2px 2px 0 #000; text-align:center; line-height:1.8; min-height:3.6em; }
+  #chestTxt small { display:block; font-size:8px; color:#d8d4ff; }
+  .coin { position:absolute; left:50%; top:30%; width:10px; height:10px; background:#ffd23f; box-shadow:inset -3px -3px 0 #c88a1e, 0 0 0 2px #000; pointer-events:none; animation:coin 1.1s cubic-bezier(.2,.7,.4,1) forwards; }
+  @keyframes chestIn { from { transform:translateY(-70vh); } 60% { transform:translateY(0); } 75% { transform:translateY(-18px); } to { transform:translateY(0); } }
+  @keyframes chestShake { 0% { transform:rotate(-4deg); } 50% { transform:rotate(4deg); } 100% { transform:rotate(-4deg); } }
+  @keyframes chestPop { from { transform:scale(1); } 40% { transform:scale(1.18); } to { transform:scale(1.08); } }
+  @keyframes coin { from { transform:translate(0,0); opacity:1; } 55% { opacity:1; } to { transform:translate(var(--dx), var(--dy)); opacity:0; } }
+  @media (prefers-reduced-motion:reduce) { #chestCv, #chestCv.shake, #chestCv.open { animation:none; } .coin { animation-duration:.01s; } }
   #achList { list-style:none; margin:16px 0 0; padding:0; display:grid; grid-template-columns:repeat(auto-fill, minmax(210px, 1fr)); gap:12px; }
   #achList li { display:flex; gap:10px; align-items:flex-start; padding:10px; background:rgba(255,255,255,.04); box-shadow:inset 0 0 0 2px rgba(255,255,255,.1); }
   #achList li.got { background:rgba(255,210,63,.1); box-shadow:inset 0 0 0 2px #ffd23f; }
@@ -218,6 +276,7 @@
   #flash { position:fixed; inset:0; background:#fff; opacity:0; pointer-events:none; }
   #flash.on { animation:flash .45s steps(3) forwards; }
   #flash.red { background:#ff2d4a; }
+  #flash.gold { background:#ffd23f; }
   #ready { position:fixed; left:0; right:0; top:42%; text-align:center; font-size:clamp(20px, 4vw, 40px); color:#fff; text-shadow:4px 4px 0 #2f8fff, 6px 6px 0 #000; pointer-events:none; display:none; }
   #ready.on { display:block; animation:blink .25s steps(1) infinite; }
   #gameBtn { position:fixed; left:50%; top:34%; transform:translateX(-50%); z-index:6; padding:12px 16px; font-size:clamp(11px, 3.4vw, 14px); white-space:nowrap; color:#14082a; background:#ffe25e; border:0; box-shadow:0 0 0 3px #14082a, 0 0 0 6px #ff5ec8, 6px 6px 0 6px #000; cursor:pointer; animation:gamePulse .5s steps(2) infinite; text-align:center; }
@@ -315,6 +374,8 @@
 </head>
 <body>
 <canvas id="world" aria-hidden="true"></canvas>
+<div id="aurora" aria-hidden="true"></div>
+<div id="chest" aria-live="polite"><div id="chestBox"><canvas id="chestCv" width="16" height="14"></canvas><div id="chestTxt"></div></div></div>
 
 <div id="hud">
   <div id="bars">
@@ -324,8 +385,8 @@
     <div class="ebar fit" id="barFit"><div class="segs"></div><b>FORME</b></div>
     <div class="ebar sleep" id="barSleep"><div class="segs"></div><b>DODO</b></div>
   </div>
-  <div id="sys"><button class="px" id="devBtn" hidden title="Outils de dev (²)">DEV</button><button class="px" id="logBtn" title="Journal">JOURNAL</button><button class="px" id="shopBtn" title="Boutique (S)">BOUTIQUE</button><button class="px" id="achBtn" title="Hauts faits (H)">HAUTS FAITS</button><button class="px" id="hallBtn" title="Panthéon des créatures (T)">TOP 10</button><button class="px" id="mute" title="Son (M)">SON ON</button><button class="px" id="fs" title="Plein écran (F)">[ ]</button><button class="px" id="cookiesBtn" hidden title="Choix des cookies">COOKIES</button></div>
-  <div id="mid"><div id="name">…</div><div id="age"></div><div id="xp" hidden title="Progression vers le niveau suivant"><div id="xpBar"></div><span id="xpText"></span></div><div id="xpHint"></div><div id="place"></div></div>
+  <div id="sys"><button class="px" id="devBtn" hidden title="Outils de dev (²)">DEV</button><button class="px" id="logBtn" title="Journal">JOURNAL</button><button class="px" id="shopBtn" title="Boutique (S)">BOUTIQUE</button><button class="px" id="defBtn" title="Défis du jour (D)">DÉFIS</button><button class="px" id="albBtn" title="Album de collection (L)">ALBUM</button><button class="px" id="achBtn" title="Hauts faits (H)">HAUTS FAITS</button><button class="px" id="hallBtn" title="Panthéon des créatures (T)">TOP 10</button><button class="px" id="mute" title="Son (M)">SON ON</button><button class="px" id="fs" title="Plein écran (F)">[ ]</button><button class="px" id="cookiesBtn" hidden title="Choix des cookies">COOKIES</button></div>
+  <div id="mid"><div id="name">…</div><div id="age"></div><div id="xp" hidden title="Progression vers le niveau suivant"><div id="xpBar"></div><span id="xpText"></span></div><div id="xpHint"></div><div id="place"></div><button id="goalLine" hidden title="Objectif collectif du jour (D)"></button></div>
   <div id="right">
     <div class="score"><span>SCORE</span><b id="score">000000</b></div>
     <div class="score" title="Créature qui a vécu le plus longtemps"><span>RECORD</span><b id="best">---</b></div>
@@ -459,6 +520,18 @@
   <div class="shopbox" role="dialog" aria-label="Hauts faits">
     <div class="shophead"><h2 id="achTitle">HAUTS FAITS</h2><button class="px" id="achClose" title="Fermer (Échap)">X</button></div>
     <ul id="achList"></ul>
+  </div>
+</div>
+<div id="defm" hidden>
+  <div class="shopbox" role="dialog" aria-label="Défis du jour">
+    <div class="shophead"><h2>DÉFIS DU JOUR</h2><span id="defReset"></span><button class="px" id="defClose" title="Fermer (Échap)">X</button></div>
+    <div id="defBody"></div>
+  </div>
+</div>
+<div id="albm" hidden>
+  <div class="shopbox" role="dialog" aria-label="Album">
+    <div class="shophead"><h2 id="albTitle">ALBUM</h2><button class="px" id="albClose" title="Fermer (Échap)">X</button></div>
+    <div id="albBody"></div>
   </div>
 </div>
 <div id="hallm" hidden>

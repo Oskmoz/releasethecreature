@@ -3231,6 +3231,7 @@
     }
     renderShop(false);
     renderHall();
+    renderDaily();
   }
 
   // Journal avec likes. On ne reconstruit la liste que si elle a changé, pour ne pas perdre un clic en cours.
@@ -3300,8 +3301,8 @@
     if (!a) { achShowing = false; return; }
     achShowing = true;
     $('achToastName').textContent = a.name.toUpperCase();
-    $('achToast').querySelector('small').textContent = a.secret ? 'HAUT FAIT SECRET DÉBLOQUÉ !' : 'HAUT FAIT DÉBLOQUÉ !';
-    $('achToastDesc').textContent = a.desc + (a.pts ? ' · +' + a.pts + ' PTS' : '');
+    $('achToast').querySelector('small').textContent = a.head || (a.secret ? 'HAUT FAIT SECRET DÉBLOQUÉ !' : 'HAUT FAIT DÉBLOQUÉ !');
+    $('achToastDesc').textContent = [a.desc, a.pts ? '+' + a.pts + ' PTS' : ''].filter(Boolean).join(' · ');
     t.style.top = Math.ceil($('hud').getBoundingClientRect().bottom + 14) + 'px'; // juste sous le HUD
     t.classList.add('show');
     Audio8.fx('ach'); spawnSparks(cre.x, mouth.top, 24, '#ffd23f');
@@ -3336,6 +3337,150 @@
       }
       li.appendChild(ic); li.appendChild(box); ul.appendChild(li);
     });
+  }
+
+  /* ---------- Défis du jour : série, quêtes, objectif collectif ---------- */
+  var defOpen = false;
+  function el(tag, cls, text) { var e = document.createElement(tag); if (cls) e.className = cls; if (text !== undefined) e.textContent = text; return e; }
+  function barOf(c, n) { var bar = el('div', 'achbar'), f = el('div'); f.style.width = Math.round(100 * Math.min(c, n) / n) + '%'; bar.appendChild(f); return bar; }
+  function openDef() { if (!st) return; defOpen = true; $('defm').hidden = false; Audio8.fx('blip'); renderDef(); }
+  function closeDef() { defOpen = false; $('defm').hidden = true; }
+  function renderDef() {
+    if (!defOpen || !st || !st.me || !st.me.quests) return;
+    var me = st.me, box = $('defBody'), s = me.streak, q = me.quests, g = me.goal, i;
+    var left = 86400e3 - ((Date.now() + offset) % 86400e3);
+    $('defReset').textContent = 'RENOUVELÉ DANS ' + Math.floor(left / 3600e3) + ' H ' + ('0' + Math.floor(left % 3600e3 / 60e3)).slice(-2);
+    box.textContent = '';
+    // Série
+    var sec = el('div', 'defsec'); sec.appendChild(el('h3', '', 'SÉRIE'));
+    sec.appendChild(el('div', 'defbig', s.n + (s.n > 1 ? ' JOURS DE SUITE' : ' JOUR')));
+    var dots = el('div', 'defdots'), inWeek = s.n > 0 && s.n % 7 === 0 ? 7 : s.n % 7;
+    for (i = 1; i <= 7; i++) dots.appendChild(el('i', i <= inWeek ? 'on' : ''));
+    sec.appendChild(dots);
+    sec.appendChild(el('p', 'defnote', (s.today ? 'BONUS DU JOUR RÉCUPÉRÉ. ' : '') + 'REVIENS DEMAIN POUR +' + s.next + ' PTS · BONUS DE +50 À CHAQUE SEMAINE COMPLÈTE · RECORD : ' + s.best + ' J'));
+    box.appendChild(sec);
+    // Quêtes
+    sec = el('div', 'defsec'); sec.appendChild(el('h3', '', 'QUÊTES DU JOUR'));
+    q.list.forEach(function (d) {
+      var row = el('div', 'defrow' + (d.done ? ' done' : ''));
+      row.appendChild(el('span', '', (d.done ? '✔ ' : '') + d.text.toUpperCase()));
+      row.appendChild(el('span', 'pts', d.done ? 'FAIT' : d.c + '/' + d.n + ' · +' + d.pts + ' PTS'));
+      row.appendChild(barOf(d.c, d.n)); sec.appendChild(row);
+    });
+    var done = q.list.filter(function (d) { return d.done; }).length;
+    var chest = el('div', 'defrow' + (q.chest ? ' done' : ''));
+    chest.appendChild(el('span', '', (q.chest ? '✔ ' : '') + 'COFFRE : TERMINE LES ' + q.list.length + ' QUÊTES'));
+    chest.appendChild(el('span', 'pts', q.chest ? 'OUVERT' : done + '/' + q.list.length + ' · +' + q.chestPts + ' PTS'));
+    sec.appendChild(chest); box.appendChild(sec);
+    // Objectif collectif
+    sec = el('div', 'defsec'); sec.appendChild(el('h3', '', 'OBJECTIF COLLECTIF'));
+    var gr = el('div', 'defrow defgoal' + (g.done ? ' done' : ''));
+    gr.appendChild(el('span', '', (g.done ? '✔ ' : '') + g.target + ' ' + g.label.toUpperCase() + ' AUJOURD’HUI'));
+    gr.appendChild(el('span', 'pts', Math.min(g.count, g.target) + '/' + g.target));
+    gr.appendChild(barOf(g.count, g.target)); sec.appendChild(gr);
+    sec.appendChild(el('p', 'defnote', g.done
+      ? 'OBJECTIF ATTEINT ! UNE AURORE BORÉALE ILLUMINE LA BÊTE. TOUS CEUX QUI Y ONT PARTICIPÉ GAGNENT +' + g.pts + ' PTS.'
+      : 'CHAQUE ACTION RÉUSSIE COMPTE (TOI : ' + g.mine + ', ' + g.players + ' JOUEUR' + (g.players > 1 ? 'S' : '') + ' AUJOURD’HUI). SI ON Y ARRIVE, TOUS LES PARTICIPANTS GAGNENT +' + g.pts + ' PTS ET UNE AURORE BORÉALE APPARAÎT.'));
+    box.appendChild(sec);
+  }
+  // Bouton, ligne d'objectif sous le HUD et aurore boréale
+  function renderDaily() {
+    var g = (st.me && st.me.goal) || st.goal;
+    if (st.me && st.me.quests) {
+      var q = st.me.quests;
+      $('defBtn').textContent = 'DÉFIS ' + q.list.filter(function (d) { return d.done; }).length + '/' + q.list.length;
+    }
+    var gl = $('goalLine');
+    gl.hidden = !g || st.dead;
+    if (g) {
+      gl.textContent = g.done ? '★ OBJECTIF DU JOUR ATTEINT ★' : 'OBJECTIF : ' + Math.min(g.count, g.target) + '/' + g.target + ' ' + g.label.toUpperCase();
+      gl.classList.toggle('done', !!g.done);
+    }
+    $('aurora').classList.toggle('on', !!(g && g.done) && !st.dead);
+    renderDef();
+  }
+
+  /* ---------- Coffre du jour : tombe, tremble, s'ouvre, pièces et points ---------- */
+  var CHEST_CLOSED = ['................', '..KKKKKKKKKKKK..', '.KBBBBBBBBBBBBK.', 'KBLLLLLLLLLLLLBK', 'KBBBBBBBBBBBBBBK', 'KKKKKKKKKKKKKKKK', 'KYYYYYYYYYYYYYYK',
+    'KBBBBBBYYBBBBBBK', 'KBBBBBYYYYBBBBBK', 'KBBBBBBYYBBBBBBK', 'KBBBBBBBBBBBBBBK', 'KDDDDDDDDDDDDDDK', 'KKKKKKKKKKKKKKKK', '................'];
+  var CHEST_OPEN = ['..KKKKKKKKKKKK..', '.KBLLLLLLLLLLBK.', '.KBBBBBBBBBBBBK.', '.KKKKKKKKKKKKKK.', '................', 'KKKKKKKKKKKKKKKK', 'KYLYLYYLYLYYLYYK',
+    'KYYYYYYYYYYYYYYK', 'KBBBBBBYYBBBBBBK', 'KBBBBBYYYYBBBBBK', 'KBBBBBBYYBBBBBBK', 'KBBBBBBBBBBBBBBK', 'KDDDDDDDDDDDDDDK', 'KKKKKKKKKKKKKKKK'];
+  var CHEST_COL = { K: '#1a0b14', B: '#a8642a', L: '#d8924a', D: '#6e3e18', Y: '#ffd23f' };
+  var chestBusy = false;
+  function drawChest(rows) {
+    var c2 = $('chestCv').getContext('2d');
+    c2.clearRect(0, 0, 16, 14);
+    rows.forEach(function (r, y) { for (var x = 0; x < 16; x++) { var ch = r[x]; if (ch === '.') continue; c2.fillStyle = ch === 'L' && rows === CHEST_OPEN && y > 4 ? '#fff3b0' : CHEST_COL[ch]; c2.fillRect(x, y, 1, 1); } });
+  }
+  function showChest(pts) {
+    if (chestBusy) return;
+    chestBusy = true;
+    var box = $('chest'), cv2 = $('chestCv'), txt = $('chestTxt');
+    cv2.className = ''; txt.textContent = ''; drawChest(CHEST_CLOSED);
+    void cv2.offsetWidth; box.classList.add('show');
+    Audio8.fx('blip');
+    setTimeout(function () { cv2.className = 'shake'; Audio8.fx('blip'); }, reduce ? 0 : 900);
+    setTimeout(function () {
+      cv2.className = 'open'; drawChest(CHEST_OPEN); Audio8.fx('ach'); flash('gold');
+      var holder = $('chestBox'), i;
+      for (i = 0; i < 26; i++) {
+        var coin = document.createElement('i'), a = Math.random() * Math.PI - Math.PI, d = 90 + Math.random() * 170;
+        coin.className = 'coin'; coin.style.setProperty('--dx', Math.round(Math.cos(a) * d) + 'px'); coin.style.setProperty('--dy', Math.round(Math.sin(a) * d + 90) + 'px');
+        coin.style.animationDelay = Math.round(Math.random() * 250) + 'ms'; holder.appendChild(coin);
+        setTimeout(function (c) { if (c.parentNode) c.parentNode.removeChild(c); }.bind(null, coin), 1700);
+      }
+      txt.textContent = '';
+      txt.appendChild(document.createTextNode('COFFRE DU JOUR !'));
+      var sm = document.createElement('small'); sm.textContent = '+' + pts + ' PTS · REVIENS DEMAIN POUR DE NOUVELLES QUÊTES'; txt.appendChild(sm);
+      spawnSparks(cre.x, mouth.top, 30, '#ffd23f');
+    }, reduce ? 300 : 1500);
+    setTimeout(function () { box.classList.remove('show'); chestBusy = false; }, reduce ? 3500 : 4800);
+  }
+  $('chest').addEventListener('click', function () { $('chest').classList.remove('show'); chestBusy = false; });
+
+  /* ---------- Album : espèces, couleurs et accessoires rencontrés ---------- */
+  var albOpen = false;
+  function openAlb() {
+    if (!st) return;
+    albOpen = true; $('albm').hidden = false; Audio8.fx('blip');
+    call('GET', '/api/album').then(function (r) { if (albOpen && r.body.species) renderAlb(r.body); }).catch(function () {});
+  }
+  function closeAlb() { albOpen = false; $('albm').hidden = true; }
+  function thumb(sp, lvl, known) {
+    var key = 'alb:' + sp + ':' + lvl;
+    if (!SPRITES[key]) SPRITES[key] = spriteDef(sp, lvl);
+    var sd = SPRITES[key], grid = spriteGrid(key, 'idle'), cols = creCols({ lvl: lvl - 1, sp: sp });
+    var cv2 = document.createElement('canvas'), c2 = cv2.getContext('2d');
+    cv2.width = sd.gw; cv2.height = sd.gh;
+    for (var y = 0; y < sd.gh; y++) for (var x = 0; x < sd.gw; x++) {
+      var ch = grid[y][x]; if (ch === '.') continue;
+      c2.fillStyle = known ? (cols[ch] || SPR_COL[ch] || '#fff') : '#2a2440'; c2.fillRect(x, y, 1, 1);
+    }
+    return cv2;
+  }
+  function renderAlb(a) {
+    var box = $('albBody'), seen = a.species.filter(function (s) { return s.met; }).length;
+    $('albTitle').textContent = 'ALBUM ' + seen + '/' + a.species.length;
+    box.textContent = '';
+    box.appendChild(el('p', 'defnote', 'UNE ESPÈCE SE DÉBLOQUE QUAND TU ES LÀ PENDANT LA VIE D’UNE CRÉATURE. COULEURS ET ACCESSOIRES AUSSI : CHAQUE PALIER DONNE UN HAUT FAIT.'));
+    var ul = el('ul'); ul.id = 'albGrid';
+    a.species.forEach(function (s) {
+      var def = SPECIES[s.id]; if (!def) return;
+      var li = el('li', (s.met ? 'got' : '') + (s.epic ? ' epic' : ''));
+      li.appendChild(thumb(s.id, s.met ? Math.max(1, Math.min(10, s.lvl || 1)) : 10, !!s.met));
+      li.appendChild(el('b', '', s.met ? def.name : (s.epic ? '??? ÉPIQUE' : '???')));
+      li.appendChild(el('span', '', s.met ? 'NIV. MAX VU : ' + s.lvl + '/' + a.maxLevel + ' · DEPUIS LE ' + new Date(s.met).toLocaleDateString('fr-FR') : 'PAS ENCORE RENCONTRÉ'));
+      ul.appendChild(li);
+    });
+    box.appendChild(ul);
+    function chips(title, list, label) {
+      box.appendChild(el('h3', 'albsub', title + ' ' + list.filter(function (c) { return c.seen; }).length + '/' + list.length));
+      var row = el('div', 'albchips');
+      list.forEach(function (c) { row.appendChild(el('span', c.seen ? 'got' : '', c.seen ? label(c).toUpperCase() : '???')); });
+      box.appendChild(row);
+    }
+    chips('COULEURS', a.colors, function (c) { return c.id; });
+    chips('ACCESSOIRES', a.acc, function (c) { return c.name; });
   }
 
   /* ---------- Panthéon : top 10 des plus longues vies ---------- */
@@ -3557,6 +3702,11 @@
     st = data; offset = data.now - Date.now(); if (data.cooldownMs) COOLDOWN = data.cooldownMs;
     if (data.ga) gaSetup(data.ga);
     if (data.me && data.me.achNew && data.me.achNew.length) { queueAch(data.me.achNew); data.me.achNew.forEach(function (a) { gaEvent('unlock_achievement', { achievement_id: a.id }); }); }
+    if (data.me && data.me.notes && data.me.notes.length) { // série, quêtes, objectif collectif ; le coffre a sa propre animation
+      var chestNote = data.me.notes.filter(function (n) { return n.head === 'COFFRE DU JOUR'; })[0];
+      queueAch(data.me.notes.filter(function (n) { return n !== chestNote; }));
+      if (chestNote) showChest(chestNote.pts);
+    }
     var placeOf = function (d) { return d && d.place && !d.dead ? d.place.key : null; };
     if (prev && prev.events && !mine) {
       var before = {}, gained = 0, forMe = false;
@@ -3781,6 +3931,13 @@
   $('shopClose').onclick = closeShop;
   $('achBtn').onclick = function (e) { e.currentTarget.blur(); if (started) openAch(); };
   $('achClose').onclick = closeAch;
+  $('defBtn').onclick = function (e) { e.currentTarget.blur(); if (started) openDef(); };
+  $('goalLine').onclick = function (e) { e.currentTarget.blur(); if (started) openDef(); };
+  $('defClose').onclick = closeDef;
+  $('defm').addEventListener('click', function (e) { if (e.target === $('defm')) closeDef(); });
+  $('albBtn').onclick = function (e) { e.currentTarget.blur(); if (started) openAlb(); };
+  $('albClose').onclick = closeAlb;
+  $('albm').addEventListener('click', function (e) { if (e.target === $('albm')) closeAlb(); });
   $('hallBtn').onclick = function (e) { e.currentTarget.blur(); if (started) openHall(); };
   $('hallClose').onclick = closeHall;
   $('hallm').addEventListener('click', function (e) { if (e.target === $('hallm')) closeHall(); });
@@ -3819,6 +3976,8 @@
     if (shopOpen) { if (k === 'escape' || k === 's') closeShop(); return; }
     if (achOpen) { if (k === 'escape' || k === 'h') closeAch(); return; }
     if (hallOpen) { if (k === 'escape' || k === 't') closeHall(); return; }
+    if (defOpen) { if (k === 'escape' || k === 'd') closeDef(); return; }
+    if (albOpen) { if (k === 'escape' || k === 'l') closeAlb(); return; }
     if (nickOpen) { if (k === 'escape') closeNick(); else if (k === 'enter') { e.preventDefault(); saveNick(); } return; }
     if (game && game.live) { gameKey(k, e); return; }
     if (gameOffer && k === 'j') { acceptGame(); return; }
@@ -3830,6 +3989,8 @@
     else if (k === 's') openShop();
     else if (k === 'p') openNick();
     else if (k === 'h') openAch();
+    else if (k === 'd') openDef();
+    else if (k === 'l') openAlb();
     else if (k === 't') openHall();
     else if (k === '²' || k === '`') toggleDev();
     else if (k === 'm') toggleMute();
