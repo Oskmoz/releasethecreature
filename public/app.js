@@ -2780,15 +2780,25 @@
 
   // ---------- Boucle ----------
   var lastFrame = performance.now();
+  var missedEvo = false, seenSaved = '';
   function updateCreature(dt) {
     if (!cre.x) { cre.x = cre.tx = playCx; }
     var si = stageOf(st);
     if (st) {
-      if (cre.stage < 0 || si < cre.stage || (si > cre.stage && !started)) cre.stage = si;
+      if (cre.stage < 0) {
+        // Évolution ratée : si la dernière fois, on avait vu un niveau plus bas, on rejoue l'animation au démarrage
+        var seen = null; try { seen = JSON.parse(localStorage.getItem('seenStage')); } catch (e) {}
+        cre.stage = seen && seen.born === st.born && seen.stage >= 0 && seen.stage < si && !st.dead ? seen.stage : si;
+        missedEvo = cre.stage < si;
+      } else if (si < cre.stage || (si > cre.stage && !started && !missedEvo)) cre.stage = si;
       else if (si > cre.stage && cre.evo <= 0) {
         cre.evoFrom = cre.stage; cre.stage = si; cre.evo = EVO_TIME;
         Audio8.fx('evo'); setDialog('SYSTÈME', 'Quoi ?! ' + st.name + ' est en train d’évoluer !', EVO_TIME * 1000 + 500, true);
       }
+    }
+    if (st && started && cre.evo <= 0 && cre.stage >= 0 && cre.stage === si && seenSaved !== st.born + ':' + si) {
+      seenSaved = st.born + ':' + si; missedEvo = false;
+      try { localStorage.setItem('seenStage', JSON.stringify({ born: st.born, stage: si })); } catch (e) {}
     }
     if (cre.evo > 0) {
       cre.evo -= dt;
