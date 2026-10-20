@@ -2791,7 +2791,7 @@
         cre.stage = seen && seen.born === st.born && seen.stage >= 0 && seen.stage < si && !st.dead ? seen.stage : si;
         missedEvo = cre.stage < si;
       } else if (si < cre.stage || (si > cre.stage && !started && !missedEvo)) cre.stage = si;
-      else if (si > cre.stage && cre.evo <= 0) {
+      else if (si > cre.stage && started && cre.evo <= 0) {
         cre.evoFrom = cre.stage; cre.stage = si; cre.evo = EVO_TIME;
         Audio8.fx('evo'); setDialog('SYSTÈME', 'Quoi ?! ' + st.name + ' est en train d’évoluer !', EVO_TIME * 1000 + 500, true);
       }
